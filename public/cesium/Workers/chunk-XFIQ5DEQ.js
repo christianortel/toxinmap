@@ -1,0 +1,3 @@
+import{e as e}from"./chunk-ILRYTWTP.js";var r=function(r){let s,a=r.name,t=r.message;s=e(a)&&e(t)?`${a}: ${t}`:r.toString();let o=r.stack;return e(o)&&(s+=`
+${o}`),s},s=function(e){async function s({data:a}){let t=[],o={id:a.id,result:void 0,error:void 0};self.CESIUM_BASE_URL=a.baseUrl;try{o.result=await e(a.parameters,t)}catch(e){e instanceof Error?o.error={name:e.name,message:e.message,stack:e.stack}:o.error=e}a.canTransferArrayBuffer||(t.length=0);try{postMessage(o,t)}catch(e){o.result=void 0,o.error=`postMessage failed with error: ${r(e)}
+  with responseMessage: ${JSON.stringify(o)}`,postMessage(o)}}return self.onmessage=s,self.onmessageerror=function(e){postMessage({id:e.data?.id,error:`postMessage failed with error: ${JSON.stringify(e)}`})},self};export{s as a};
