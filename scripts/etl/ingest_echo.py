@@ -26,10 +26,22 @@ from utils.validation import validate_load_rows
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Download, normalize, and optionally load EPA ECHO ICIS FE&C data.")
+    parser.add_argument("--states", default="", help="Optional comma-separated state filter, e.g. NC,LA,OH.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--force-download", action="store_true")
     parser.add_argument("--load", action="store_true")
     return parser.parse_args()
+
+
+def normalize_state_filter(states: str) -> set[str]:
+    return {value.strip().upper() for value in states.split(",") if value.strip()}
+
+
+def normalize_registry_id(value: object) -> str:
+    text = str(value or "").strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    return text
 
 
 def discover_case_file(zip_path):
@@ -63,11 +75,12 @@ def build_facility_updates(frame: pd.DataFrame) -> list[dict]:
 
     rows: list[dict] = []
     for record in grouped.to_dict("records"):
+        registry_id = normalize_registry_id(record.get("registry_id"))
         case_studies = infer_case_studies(record.get("state_code"))
         rows.append(
             {
-                "slug": f"frs-{str(record['registry_id']).strip()}",
-                "facility_name": record.get("facility_name") or f"ECHO facility {record['registry_id']}",
+                "slug": f"frs-{registry_id}",
+                "facility_name": record.get("facility_name") or f"ECHO facility {registry_id}",
                 "operator_name": None,
                 "naics_code": None,
                 "status": "regulated",
@@ -123,7 +136,7 @@ def build_facility_updates(frame: pd.DataFrame) -> list[dict]:
                     "sourceStats": [
                         {"label": "Federal cases", "value": str(int(record["case_count"]))},
                     ],
-                    "frsId": record.get("registry_id"),
+                    "frsId": registry_id,
                 },
             }
         )
@@ -133,18 +146,25 @@ def build_facility_updates(frame: pd.DataFrame) -> list[dict]:
 
 def build_case_context_rows(frame: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
+    seen_slugs: set[str] = set()
     for record in frame.to_dict("records"):
         case_number = str(record.get(case_number_column) or "").strip()
         if not case_number:
             continue
 
         state_code = str(record.get(state_column) or "").strip()
+        registry_id = normalize_registry_id(record.get("registry_id"))
         case_studies = infer_case_studies(state_code)
         concern_type = str(record.get(program_column) or "").strip() or "Federal enforcement context"
         title = record.get(case_name_column) or f"ICIS FE&C case {case_number}"
+        slug = f"echo-case-{slugify(case_number)}"
+        if slug in seen_slugs:
+            continue
+        seen_slugs.add(slug)
+
         rows.append(
             {
-                "slug": f"echo-case-{slugify(case_number)}",
+                "slug": slug,
                 "title": title,
                 "concern_type": concern_type,
                 "narrative": " | ".join(
@@ -172,7 +192,7 @@ def build_case_context_rows(frame: pd.DataFrame) -> list[dict]:
                 "source_updated_at": datetime.now(timezone.utc).isoformat(),
                 "ingestion_version": "echo_fec_v1",
                 "metadata": {
-                    "frsId": record.get("registry_id"),
+                    "frsId": registry_id,
                     "caseNumber": case_number,
                     "relatedCaseStudyIds": case_studies,
                 },
@@ -184,12 +204,16 @@ def build_case_context_rows(frame: pd.DataFrame) -> list[dict]:
 
 def main() -> None:
     args = parse_args()
+    state_filter = normalize_state_filter(args.states)
     raw_zip = raw_path("epa-echo", "case_downloads.zip")
     raw_zip = ensure_zip_download(ECHO_FEC_DOWNLOAD_URL, raw_zip, force=args.force_download)
 
     case_file = discover_case_file(raw_zip)
     with zipfile.ZipFile(raw_zip) as archive, archive.open(case_file) as handle:
         frame = normalize_columns(pd.read_csv(handle, low_memory=False, nrows=args.limit if args.limit else None))
+
+    if "registry_id" in frame.columns:
+        frame["registry_id"] = frame["registry_id"].apply(normalize_registry_id)
 
     global facility_column, state_column, city_column, program_column, case_number_column
     global case_year_column, case_name_column, status_column
@@ -204,6 +228,11 @@ def main() -> None:
     ) or "registry_id"
     case_name_column = first_existing_column(frame, ["case_name", "case_title", "enforcement_case_name"]) or case_number_column
     status_column = first_existing_column(frame, ["case_status", "status", "status_desc"]) or program_column
+
+    if state_filter:
+        frame[state_column] = frame[state_column].fillna("").astype(str).str.upper()
+        frame = frame[frame[state_column].isin(state_filter)].copy()
+
     case_year_column = first_existing_column(
         frame,
         ["fiscal_year", "activity_year", "case_year", "year"],

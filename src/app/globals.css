@@ -14,8 +14,12 @@
   --accent-bio: #708469;
   --accent-bio-soft: #8e9e84;
   --accent-industrial: #a56c48;
+  --accent-power: #9aa7bb;
+  --accent-hazard: #d18b58;
+  --accent-legal: #d4bf86;
   --accent-warning: #c79458;
   --accent-water: #87a0b0;
+  --accent-wastewater: #669f9f;
   --accent-steel: #5c6973;
   --radius: 24px;
   --shadow-panel: 0 20px 80px rgba(0, 0, 0, 0.32);
@@ -40,6 +44,12 @@ body {
     radial-gradient(circle at 20% 80%, rgba(112, 132, 105, 0.16), transparent 24%),
     linear-gradient(180deg, #07090b 0%, #0b0e11 42%, #08090b 100%);
   color: var(--foreground);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Segoe UI",
+    sans-serif;
   font-feature-settings:
     "rlig" 1,
     "calt" 1;
@@ -181,11 +191,54 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .hud-panel {
-    backdrop-filter: blur(18px);
-    background: rgba(11, 14, 18, 0.72);
-    border: 1px solid rgba(220, 225, 219, 0.12);
+    backdrop-filter: blur(22px);
+    background: linear-gradient(180deg, rgba(14, 18, 25, 0.72), rgba(10, 14, 20, 0.64));
+    border: 1px solid rgba(220, 225, 219, 0.1);
     border-radius: 22px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 16px 46px rgba(0, 0, 0, 0.22);
+  }
+
+  .hud-panel-slim {
+    backdrop-filter: blur(20px);
+    background: linear-gradient(180deg, rgba(11, 15, 22, 0.62), rgba(8, 12, 18, 0.54));
+    border: 1px solid rgba(106, 138, 158, 0.14);
+    border-radius: 18px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .command-grid {
+    background-image:
+      linear-gradient(to right, rgba(55, 92, 112, 0.12) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(55, 92, 112, 0.08) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.9), transparent 92%);
+  }
+
+  .command-frame {
+    position: absolute;
+    inset: 14px;
+    pointer-events: none;
+    border: 1px solid rgba(84, 134, 158, 0.16);
+    clip-path: polygon(
+      0 26px,
+      26px 26px,
+      26px 0,
+      calc(100% - 26px) 0,
+      calc(100% - 26px) 26px,
+      100% 26px,
+      100% calc(100% - 26px),
+      calc(100% - 26px) calc(100% - 26px),
+      calc(100% - 26px) 100%,
+      26px 100%,
+      26px calc(100% - 26px),
+      0 calc(100% - 26px)
+    );
+    opacity: 0.75;
+  }
+
+  .status-rail {
+    @apply text-[10px] uppercase tracking-[0.28em];
+    color: var(--foreground-soft);
   }
 
   .interactive-surface {

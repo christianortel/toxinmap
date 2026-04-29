@@ -62,6 +62,8 @@ export type ExplorerTimelineRange = {
   endYear: number;
 };
 
+export type ExplorerCameraBand = "national" | "regional" | "local";
+
 export type ExplorerEntitySourceStat = {
   label: string;
   value: string;
@@ -120,7 +122,7 @@ export type ExplorerEntityDetail = ExplorerEntity & {
   sources: SourceRegistryEntry[];
   relatedCaseStudies: CaseStudyRecord[];
   releaseRecords?: ExplorerReleaseRecord[];
-  backend: "database" | "mock";
+  backend: "database" | "etl-file" | "mock";
 };
 
 export type ExplorerLayerDefinition = {
@@ -152,6 +154,18 @@ export type ExplorerSearchResult = {
   matchType?: "entity" | "location" | "chemical" | "case-study";
   matchContext?: string;
   entityId?: string;
+  coordinates?: [number, number];
+  layerId?: ExplorerLayerId;
+  layerGroup?: ExplorerLayerGroup;
+  layerLabel?: string;
+  layerShortLabel?: string;
+  evidenceType?: ExplorerEvidenceType;
+  confidenceLevel?: ExplorerConfidenceLevel;
+  sourceIds?: string[];
+  sourceHint?: string;
+  systemHint?: string;
+  chemistryHint?: string;
+  categoryHint?: string;
   relatedCaseStudyId?: string;
   score: number;
 };
@@ -168,6 +182,11 @@ export type ExplorerCameraTarget = {
   height?: number;
 };
 
+export type ExplorerCameraView = {
+  coordinates: [number, number];
+  height: number;
+};
+
 export type ExplorerNearbyFocus = {
   label: string;
   coordinates: [number, number];
@@ -179,6 +198,12 @@ export type ExplorerNearbyResult = {
   distanceMiles: number;
   priorityScore: number;
   whyRanked: string;
+};
+
+export type ExplorerCoverageNote = {
+  id: string;
+  title: string;
+  body: string;
 };
 
 export type ExplorerNearbyResponse = {
@@ -196,6 +221,12 @@ export type ExplorerNearbyResponse = {
   sourceCounts: Array<{
     sourceId: string;
     label: string;
+    count: number;
+  }>;
+  systemCounts: Array<{
+    id: string;
+    label: string;
+    description: string;
     count: number;
   }>;
   signalFamilyCounts: Array<{
@@ -217,6 +248,7 @@ export type ExplorerNearbyResponse = {
     label: string;
     count: number;
   }>;
+  coverageNotes: ExplorerCoverageNote[];
   summaryLines: string[];
   headlineResults: ExplorerNearbyResult[];
   results: ExplorerNearbyResult[];

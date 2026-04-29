@@ -3,9 +3,14 @@
 import { useRouter } from "next/navigation";
 import { Crosshair, LoaderCircle, MapPin, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { EvidenceBadge } from "@/components/evidence-badge";
-import { UncertaintyBadge } from "@/components/uncertainty-badge";
 import { chemicalQuickSearches } from "@/lib/data/chemistry";
+import { resolveExplorerEntityFocusState } from "@/lib/map/entity-activation";
+import {
+  getExplorerSearchMatchLabel,
+  getExplorerSearchResultActionLabel,
+  getExplorerSearchResultInsightBadges,
+} from "@/lib/map/search-presentation";
+import type { SelectionSurfaceContext } from "@/lib/map/selection-context";
 import type { ExplorerNearbyResponse, ExplorerSearchResult } from "@/types/explorer";
 import { useExplorerStore } from "@/store/explorer-store";
 
@@ -16,7 +21,7 @@ type LocationFeedback = {
 
 type SearchControlShellProps = {
   results: ExplorerSearchResult[];
-  resultCount: number;
+  isSearchLoading: boolean;
   nearbySummary: ExplorerNearbyResponse | null;
   locationFeedback: LocationFeedback | null;
   nearbyErrorMessage: string | null;
@@ -25,11 +30,17 @@ type SearchControlShellProps = {
   isResolvingLocation: boolean;
   isLocating: boolean;
   isNearbyLoading: boolean;
+  scopeLabel: string;
+  cameraBandLabel: string;
+  renderedSignalCount: number;
+  topLayerLabels: string[];
+  selectionContext: SelectionSurfaceContext;
+  onSelectionContextAction: (actionId: SelectionSurfaceContext["actions"][number]["id"]) => void;
 };
 
 export function SearchControlShell({
   results,
-  resultCount,
+  isSearchLoading,
   nearbySummary,
   locationFeedback,
   nearbyErrorMessage,
@@ -38,17 +49,28 @@ export function SearchControlShell({
   isResolvingLocation,
   isLocating,
   isNearbyLoading,
+  scopeLabel,
+  cameraBandLabel,
+  renderedSignalCount,
+  topLayerLabels,
+  selectionContext,
+  onSelectionContextAction,
 }: SearchControlShellProps) {
   const router = useRouter();
   const [locationError, setLocationError] = useState<string | null>(null);
   const searchQuery = useExplorerStore((state) => state.searchQuery);
   const isSearchOpen = useExplorerStore((state) => state.isSearchOpen);
+  const selectedEntityId = useExplorerStore((state) => state.selectedEntityId);
+  const isDrawerOpen = useExplorerStore((state) => state.isDrawerOpen);
+  const nearbyFocus = useExplorerStore((state) => state.nearbyFocus);
+  const cameraTarget = useExplorerStore((state) => state.cameraTarget);
+  const isCameraAtHome = useExplorerStore((state) => state.isCameraAtHome);
+  const activeGroups = useExplorerStore((state) => state.activeGroups);
+  const activeLayerIds = useExplorerStore((state) => state.activeLayerIds);
+  const activeFilterChips = useExplorerStore((state) => state.activeFilterChips);
+  const applyExplorerSurfaceState = useExplorerStore((state) => state.applyExplorerSurfaceState);
   const setSearchQuery = useExplorerStore((state) => state.setSearchQuery);
   const setSearchOpen = useExplorerStore((state) => state.setSearchOpen);
-  const setSelectedEntityId = useExplorerStore((state) => state.setSelectedEntityId);
-  const setDrawerOpen = useExplorerStore((state) => state.setDrawerOpen);
-  const nearbyFocus = useExplorerStore((state) => state.nearbyFocus);
-  const setNearbyFocus = useExplorerStore((state) => state.setNearbyFocus);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -62,14 +84,30 @@ export function SearchControlShell({
   }, [setSearchOpen]);
 
   function handleSelect(result: ExplorerSearchResult) {
-    setSearchQuery(result.title);
-    setSearchOpen(false);
     if (result.entityId) {
-      setSelectedEntityId(result.entityId);
-      setDrawerOpen(true);
+      const nextState = resolveExplorerEntityFocusState(
+        {
+          entityId: result.entityId,
+          label: result.title,
+          coordinates: result.coordinates,
+        },
+        {
+          selectedEntityId,
+          nearbyFocus,
+          isDrawerOpen,
+          searchQuery: result.title,
+          isSearchOpen,
+          cameraTarget,
+          isCameraAtHome,
+        },
+      );
+
+      applyExplorerSurfaceState(nextState);
       return;
     }
 
+    setSearchQuery(result.title);
+    setSearchOpen(false);
     if (result.relatedCaseStudyId) {
       router.push(`/case-studies/${result.relatedCaseStudyId}`);
     }
@@ -95,10 +133,7 @@ export function SearchControlShell({
         ? "Requesting your current location..."
         : isNearbyLoading
           ? "Loading nearby mapped signals..."
-          : locationFeedback?.message ??
-            (nearbySummary
-              ? `${nearbySummary.total} mapped signals loaded within ${nearbySummary.center.radiusMiles} miles.`
-              : null));
+          : locationFeedback?.message ?? null);
 
   const statusTone: LocationFeedback["tone"] =
     locationError || nearbyErrorMessage
@@ -109,21 +144,55 @@ export function SearchControlShell({
 
   const statusClasses =
     statusTone === "error"
-      ? "border-[rgba(179,108,77,0.32)] bg-[rgba(179,108,77,0.12)] text-[var(--accent-warning)]"
+      ? "text-[var(--accent-warning)]"
       : statusTone === "success"
-        ? "border-[rgba(126,147,118,0.3)] bg-[rgba(126,147,118,0.12)] text-[var(--foreground-muted)]"
-        : "border-white/10 bg-white/5 text-[var(--foreground-muted)]";
+        ? "text-[var(--foreground-muted)]"
+        : "text-[var(--foreground-muted)]";
+  const scopeSummary = nearbySummary
+    ? `${nearbySummary.total.toLocaleString()} signals in ${nearbySummary.center.radiusMiles} miles`
+    : `${renderedSignalCount.toLocaleString()} onscreen in ${cameraBandLabel.toLowerCase()} view`;
+  const compactScopeItems = [
+    nearbySummary
+      ? `${nearbySummary.center.radiusMiles} mi radius`
+      : null,
+    `${activeLayerIds.length} layers`,
+    `${activeGroups.length} groups`,
+    activeFilterChips.length > 0 ? `${activeFilterChips.length} filters` : "default stack",
+  ].filter(Boolean) as string[];
+  const topSystems = nearbySummary?.systemCounts.slice(0, 2) ?? [];
+  const quickCompounds = chemicalQuickSearches.slice(0, 4);
+  const topScopePills = [
+    ...compactScopeItems.slice(0, 2),
+    ...(topSystems.length
+      ? topSystems.slice(0, 1).map((system) => system.label)
+      : topLayerLabels.slice(0, 1)),
+  ];
 
   return (
-    <div className="hud-panel relative p-4">
+    <div className="hud-panel-slim relative z-40 max-w-[440px] border-[rgba(106,138,158,0.14)] bg-[rgba(10,14,20,0.48)] p-2.5 shadow-[0_22px_54px_rgba(0,0,0,0.2)]">
+      <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
+        <p className="text-sm text-white">{scopeLabel}</p>
+        <p className="status-rail">
+          {cameraBandLabel} / {renderedSignalCount.toLocaleString()} onscreen
+        </p>
+      </div>
       <form
         onSubmit={(event) => {
           event.preventDefault();
+          if (results.length > 0) {
+            handleSelect(results[0]);
+            return;
+          }
+
+          if (isSearchLoading) {
+            return;
+          }
+
           void handleLocationSearch();
         }}
-        className="space-y-3"
+        className="space-y-2.5"
       >
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 focus-within:border-white/18 focus-within:bg-white/7">
+        <div className="flex items-center gap-2 rounded-full border border-[rgba(87,132,154,0.16)] bg-[rgba(255,255,255,0.04)] px-3 py-2 focus-within:border-[rgba(87,132,154,0.28)] focus-within:bg-[rgba(255,255,255,0.06)]">
           <Search className="ml-1 h-4 w-4 text-[var(--foreground-soft)]" />
           <input
             value={searchQuery}
@@ -149,12 +218,12 @@ export function SearchControlShell({
           <button
             type="submit"
             disabled={!searchQuery.trim() || isResolvingLocation}
-            className="inline-flex h-10 items-center justify-center rounded-full border border-white/10 bg-white/7 px-4 text-sm text-white transition hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-[rgba(87,132,154,0.18)] bg-[rgba(87,132,154,0.1)] px-3 text-sm text-white transition hover:bg-[rgba(87,132,154,0.16)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isResolvingLocation ? (
               <LoaderCircle className="h-4 w-4 animate-spin" />
             ) : (
-              "Go"
+              <Search className="h-4 w-4" />
             )}
           </button>
         </div>
@@ -170,7 +239,7 @@ export function SearchControlShell({
               }
             }}
             disabled={isLocating}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-[var(--foreground-muted)] transition hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-[rgba(255,255,255,0.04)] px-3.5 py-1.5 text-sm text-[var(--foreground-muted)] transition hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLocating ? (
               <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -182,20 +251,69 @@ export function SearchControlShell({
           <button
             type="submit"
             disabled={!searchQuery.trim() || isResolvingLocation}
-            className="inline-flex items-center gap-2 rounded-full border border-[rgba(135,160,176,0.22)] bg-[rgba(135,160,176,0.12)] px-4 py-2 text-sm text-white transition hover:bg-[rgba(135,160,176,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-full border border-[rgba(87,132,154,0.22)] bg-[rgba(87,132,154,0.12)] px-3.5 py-1.5 text-sm text-white transition hover:bg-[rgba(87,132,154,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <MapPin className="h-4 w-4" />
-            Search U.S. location
+            Search
           </button>
-          <p className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-            {resultCount} visible signals
-          </p>
+          {resolvedStatus ? (
+            <span className={`w-full text-[10px] uppercase tracking-[0.16em] ${statusClasses} sm:ml-auto sm:w-auto`}>
+              {resolvedStatus}
+            </span>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-            Try compounds
-          </p>
-          {chemicalQuickSearches.map((entry) => (
+        <div
+          data-testid="selection-context"
+          data-context-kind={selectionContext.kind}
+          className="rounded-[18px] border border-white/8 bg-[rgba(255,255,255,0.03)] px-3.5 py-3"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="status-rail">{selectionContext.title}</p>
+              {selectionContext.chips.map((chip) => (
+                <span
+                  key={chip.id}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${
+                    chip.emphasis === "strong"
+                      ? "border-[rgba(135,160,176,0.18)] bg-[rgba(135,160,176,0.08)] text-white"
+                      : "border-white/10 text-[var(--foreground-soft)]"
+                  }`}
+                >
+                  {chip.value}
+                </span>
+              ))}
+            </div>
+            {selectionContext.actions.length ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {selectionContext.actions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    data-testid={`selection-context-action-${action.id}`}
+                    onClick={() => onSelectionContextAction(action.id)}
+                    className="rounded-full border border-white/10 bg-white/4 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[var(--foreground-soft)] transition hover:bg-white/8 hover:text-white"
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm text-white">{selectionContext.value}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          <span className="text-sm text-white">{scopeSummary}</span>
+          {topScopePills.map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-[var(--foreground-soft)]"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          {quickCompounds.map((entry) => (
             <button
               key={entry.query}
               type="button"
@@ -203,245 +321,81 @@ export function SearchControlShell({
                 setSearchQuery(entry.query);
                 setSearchOpen(true);
               }}
-              className="rounded-full border border-[rgba(179,108,77,0.18)] bg-[rgba(179,108,77,0.08)] px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-[var(--foreground-muted)] transition hover:bg-[rgba(179,108,77,0.14)] hover:text-white"
+              className="rounded-full border border-[rgba(179,108,77,0.16)] bg-[rgba(179,108,77,0.06)] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[var(--foreground-muted)] transition hover:bg-[rgba(179,108,77,0.12)] hover:text-white"
             >
               {entry.label}
             </button>
           ))}
         </div>
-        {resolvedStatus ? (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${statusClasses}`}>
-            {resolvedStatus}
-          </div>
-        ) : null}
       </form>
 
-      {nearbySummary ? (
-        <div className="mt-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="eyebrow mb-2">Nearby signals</p>
-              <p className="text-sm text-white">{nearbySummary.center.label}</p>
-              <p className="mt-1 body-sm">
-                {nearbySummary.total} mapped signals within {nearbySummary.center.radiusMiles} miles
-              </p>
-            </div>
-            <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-              U.S. focus
-            </span>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-              Nearby radius
-            </p>
-            {[25, 50, 100].map((radiusMiles) => (
-              <button
-                key={radiusMiles}
-                type="button"
-                onClick={() => {
-                  if (!nearbyFocus) return;
-                  setNearbyFocus({
-                    ...nearbyFocus,
-                    radiusMiles,
-                  });
-                }}
-                className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition ${
-                  nearbySummary.center.radiusMiles === radiusMiles
-                    ? "border-[rgba(135,160,176,0.32)] bg-[rgba(135,160,176,0.16)] text-white"
-                    : "border-white/10 bg-white/4 text-[var(--foreground-soft)] hover:bg-white/7 hover:text-white"
-                }`}
-              >
-                {radiusMiles} mi
-              </button>
-            ))}
-          </div>
-          {nearbySummary.sourceCounts.length ? (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                Top source families in view
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {nearbySummary.sourceCounts.map((source) => (
-                  <span
-                    key={source.sourceId}
-                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-[var(--foreground-muted)]"
-                  >
-                    {source.label} / {source.count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {nearbySummary.signalFamilyCounts.length ? (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                Dominant signal stack
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {nearbySummary.signalFamilyCounts.map((family) => (
-                  <span
-                    key={family.id}
-                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-[var(--foreground-muted)]"
-                  >
-                    {family.label} / {family.count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {nearbySummary.chemicalMarkerCounts.length ? (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                Dominant chemistry markers
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {nearbySummary.chemicalMarkerCounts.map((marker) => (
-                  <span
-                    key={marker.id}
-                    className="rounded-full border border-[rgba(135,160,176,0.18)] bg-[rgba(135,160,176,0.1)] px-3 py-1.5 text-xs text-white"
-                  >
-                    {marker.label} / {marker.count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {nearbySummary.chemicalHighlightCounts.length ? (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                Named chemical spotlights
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {nearbySummary.chemicalHighlightCounts.map((entry) => (
-                  <span
-                    key={entry.label}
-                    className="rounded-full border border-[rgba(179,108,77,0.22)] bg-[rgba(179,108,77,0.1)] px-3 py-1.5 text-xs text-white"
-                  >
-                    {entry.label} / {entry.count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {nearbySummary.themeCounts.length ? (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                What this area lights up for
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {nearbySummary.themeCounts.map((theme) => (
-                  <span
-                    key={theme.theme}
-                    className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-[var(--foreground-muted)]"
-                  >
-                    {theme.label} / {theme.count}
-                  </span>
-                ))}
-              </div>
-              {nearbySummary.summaryLines.length ? (
-                <div className="mt-3 space-y-2">
-                  {nearbySummary.summaryLines.map((line) => (
-                    <p key={line} className="body-sm">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {nearbySummary.results.length ? (
-            <div className="mt-4 space-y-2">
-              {nearbySummary.headlineResults.map((result) => (
-                <button
-                  key={result.entity.id}
-                  type="button"
-                  onClick={() =>
-                    handleSelect({
-                      id: result.entity.id,
-                      title: result.entity.title,
-                      subtitle: result.entity.locationLabel,
-                      kind: "entity",
-                      entityId: result.entity.id,
-                      score: 100,
-                    })
-                  }
-                  className="flex w-full items-start justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/7"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm text-white">{result.entity.title}</p>
-                      <EvidenceBadge evidence={result.entity.evidenceType} />
-                    </div>
-                    <p className="mt-2 body-sm">{result.whyRanked}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                      {Math.max(1, Math.round(result.distanceMiles))} mi
-                    </span>
-                    <div className="mt-2 flex justify-end">
-                      <UncertaintyBadge level={result.entity.confidenceLevel} />
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 px-4 py-4">
-              <p className="text-sm text-white">No mapped signals in the current radius</p>
-              <p className="mt-2 body-sm">
-                Try a broader search area or switch on additional layers to widen the U.S. context around this place.
-              </p>
-            </div>
-          )}
-        </div>
-      ) : null}
-
       {isSearchOpen && searchQuery.trim() ? (
-        <div className="absolute inset-x-4 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-[22px] border border-white/10 bg-[rgba(10,12,15,0.96)] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+        <div className="absolute inset-x-4 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-[22px] border border-white/10 bg-[rgba(10,12,15,0.96)] shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
           <div className="max-h-[320px] overflow-y-auto p-2">
-            {results.length > 0 ? (
+            {isSearchLoading ? (
+              <div className="px-4 py-5">
+                <p className="text-sm text-white">Searching mapped signals...</p>
+                <p className="mt-2 body-sm">
+                  Checking the live toxin map for facilities, chemistry, case studies, and nearby
+                  mapped records.
+                </p>
+              </div>
+            ) : results.length > 0 ? (
               <>
-                {results.map((result) => (
+                {results.map((result, index) => (
                   <button
                     key={result.id}
                     type="button"
+                    data-testid="search-result"
+                    data-result-id={result.id}
+                    data-layer-id={result.layerId ?? ""}
+                    data-evidence-type={result.evidenceType ?? ""}
+                    data-source-hint={result.sourceHint ?? ""}
                     onClick={() => handleSelect(result)}
-                    className="flex w-full items-start justify-between rounded-2xl px-4 py-3 text-left transition hover:bg-white/7"
+                    className={`flex w-full items-start justify-between gap-4 rounded-[20px] border px-4 py-3.5 text-left transition ${
+                      index === 0
+                        ? "border-[rgba(135,160,176,0.16)] bg-[rgba(135,160,176,0.08)] hover:bg-[rgba(135,160,176,0.12)]"
+                        : "border-transparent hover:border-white/8 hover:bg-white/6"
+                    }`}
                   >
-                    <div>
-                      <p className="text-sm text-white">{result.title}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <p className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-                          {result.kind === "entity" ? "Mapped signal" : "Case study"}
-                        </p>
-                        {result.matchType ? (
-                          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                            {result.matchType === "chemical"
-                              ? "Chemical match"
-                              : result.matchType === "location"
-                                ? "Location match"
-                                : result.matchType === "entity"
-                                  ? "Entity match"
-                                  : "Case study"}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-[var(--foreground-soft)]">
+                          {getExplorerSearchMatchLabel(result)}
+                        </span>
+                        {index === 0 ? (
+                          <span className="rounded-full border border-[rgba(135,160,176,0.18)] bg-[rgba(135,160,176,0.08)] px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-white">
+                            Top result
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-2 body-sm text-[var(--foreground-muted)]">{result.subtitle}</p>
+                      <p className="mt-2 text-sm text-white">{result.title}</p>
+                      {getExplorerSearchResultInsightBadges(result).length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {getExplorerSearchResultInsightBadges(result).map((badge) => (
+                            <span
+                              key={badge}
+                              className="rounded-full border border-white/10 bg-white/4 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-[var(--foreground-muted)]"
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <p className="mt-1 text-sm leading-6 text-[var(--foreground-muted)]">{result.subtitle}</p>
                       {result.matchContext ? (
-                        <p className="mt-2 text-xs text-[var(--foreground-soft)]">{result.matchContext}</p>
+                        <p className="mt-2 text-xs leading-5 text-[var(--foreground-soft)]">{result.matchContext}</p>
                       ) : null}
                     </div>
-                    {result.relatedCaseStudyId ? (
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)]">
-                        Read
-                      </span>
-                    ) : null}
+                    <span className="shrink-0 rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-[var(--foreground-soft)]">
+                      {getExplorerSearchResultActionLabel(result)}
+                    </span>
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={() => void handleLocationSearch()}
-                  className="mt-2 flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/7"
+                  className="mt-2 flex w-full items-center justify-between rounded-[20px] border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/7"
                 >
                   <div>
                     <p className="text-sm text-white">Search this place in the U.S.</p>
@@ -462,7 +416,7 @@ export function SearchControlShell({
                   <button
                     type="button"
                     onClick={() => void handleLocationSearch()}
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/7"
+                    className="flex w-full items-center justify-between rounded-[20px] border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:bg-white/7"
                   >
                     <div>
                       <p className="text-sm text-white">Search this U.S. location</p>

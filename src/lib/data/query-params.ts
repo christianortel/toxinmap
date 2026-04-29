@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { EvidenceType, LayerGroup } from "@/types/data";
-import type { ExplorerFilterChip, ExplorerLayerId } from "@/types/explorer";
+import type { ExplorerCameraBand, ExplorerFilterChip, ExplorerLayerId } from "@/types/explorer";
 
 export const layerGroupValues = [
   "official",
@@ -23,11 +23,13 @@ const evidenceTypeSchema = z.enum(evidenceTypeValues);
 
 export type ParsedEntityQuery = {
   layerGroup?: LayerGroup;
+  layerId?: ExplorerLayerId;
   evidenceType?: EvidenceType;
   category?: string;
   sourceId?: string;
   relatedCaseStudyId?: string;
   year?: number;
+  limit?: number;
 };
 
 export type ParsedNearbyQuery = {
@@ -38,6 +40,17 @@ export type ParsedNearbyQuery = {
   groups?: LayerGroup[];
   layers?: ExplorerLayerId[];
   chips?: ExplorerFilterChip[];
+};
+
+export type ParsedMapEntitiesQuery = {
+  year?: number;
+  groups?: LayerGroup[];
+  layers?: ExplorerLayerId[];
+  chips?: ExplorerFilterChip[];
+  cameraBand: ExplorerCameraBand;
+  centerLat?: number;
+  centerLng?: number;
+  selectedEntityId?: string;
 };
 
 export type ParsedSourceQuery = {
@@ -70,6 +83,9 @@ export function parseEntityQuery(searchParams: URLSearchParams): ParsedEntityQue
 
   return {
     layerGroup: layerGroupValue ? layerGroupSchema.safeParse(layerGroupValue).data : undefined,
+    layerId: cleanString(searchParams.get("layerId"))
+      ? explorerLayerIdSchema.safeParse(cleanString(searchParams.get("layerId"))).data
+      : undefined,
     evidenceType: evidenceTypeValue
       ? evidenceTypeSchema.safeParse(evidenceTypeValue).data
       : undefined,
@@ -77,6 +93,7 @@ export function parseEntityQuery(searchParams: URLSearchParams): ParsedEntityQue
     sourceId: cleanString(searchParams.get("sourceId")),
     relatedCaseStudyId: cleanString(searchParams.get("relatedCaseStudyId")),
     year: yearValue ? z.coerce.number().int().safeParse(yearValue).data : undefined,
+    limit: z.coerce.number().int().positive().max(5000).safeParse(cleanString(searchParams.get("limit"))).data,
   };
 }
 
@@ -158,5 +175,40 @@ export function parseNearbyQuery(searchParams: URLSearchParams): ParsedNearbyQue
     groups: groups.length ? groups : undefined,
     layers: layers.length ? layers : undefined,
     chips: chips.length ? chips : undefined,
+  };
+}
+
+export function parseMapEntitiesQuery(searchParams: URLSearchParams): ParsedMapEntitiesQuery {
+  const parsedYear = z.coerce.number().int().safeParse(cleanString(searchParams.get("year")));
+  const parsedCameraBand = z
+    .enum(["national", "regional", "local"])
+    .safeParse(cleanString(searchParams.get("cameraBand")));
+  const parsedCenterLat = z.coerce.number().safeParse(cleanString(searchParams.get("centerLat")));
+  const parsedCenterLng = z.coerce.number().safeParse(cleanString(searchParams.get("centerLng")));
+
+  const groups = splitValues(searchParams.get("groups"))
+    .map((value) => layerGroupSchema.safeParse(value))
+    .filter((result) => result.success)
+    .map((result) => result.data);
+
+  const layers = splitValues(searchParams.get("layers"))
+    .map((value) => explorerLayerIdSchema.safeParse(value))
+    .filter((result) => result.success)
+    .map((result) => result.data);
+
+  const chips = splitValues(searchParams.get("chips"))
+    .map((value) => explorerFilterChipSchema.safeParse(value))
+    .filter((result) => result.success)
+    .map((result) => result.data);
+
+  return {
+    year: parsedYear.success ? parsedYear.data : undefined,
+    groups: groups.length ? groups : undefined,
+    layers: layers.length ? layers : undefined,
+    chips: chips.length ? chips : undefined,
+    cameraBand: parsedCameraBand.success ? parsedCameraBand.data : "national",
+    centerLat: parsedCenterLat.success ? parsedCenterLat.data : undefined,
+    centerLng: parsedCenterLng.success ? parsedCenterLng.data : undefined,
+    selectedEntityId: cleanString(searchParams.get("selectedEntityId")),
   };
 }

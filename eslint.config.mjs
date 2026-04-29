@@ -8,6 +8,7 @@ const eslintConfig = [
     ignores: [
       "node_modules/**",
       ".next/**",
+      ".local/**",
       "out/**",
       "dist/**",
       "public/cesium/**",

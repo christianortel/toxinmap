@@ -16,5 +16,6 @@ export function buildLegendItems(entities: ExplorerVisibleEntity[]): ExplorerLeg
         description: layer.description,
       };
     })
-    .filter((item) => item.count > 0);
+    .filter((item) => item.count > 0)
+    .sort((left, right) => right.count - left.count);
 }

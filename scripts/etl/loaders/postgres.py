@@ -1,12 +1,36 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+from pathlib import Path
 from typing import Iterable
 
 
+def _read_database_url_from_local_env() -> str | None:
+    root = Path(__file__).resolve().parents[3]
+    for candidate in (root / ".env.local", root / ".env"):
+        if not candidate.exists():
+            continue
+
+        for raw_line in candidate.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            if key.strip() != "DATABASE_URL":
+                continue
+
+            normalized = value.strip().strip('"').strip("'")
+            if normalized:
+                return normalized
+
+    return None
+
+
 def _connect():
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = os.environ.get("DATABASE_URL") or _read_database_url_from_local_env()
     if not database_url:
         raise RuntimeError("DATABASE_URL is required when --load is used.")
 
@@ -17,7 +41,51 @@ def _connect():
             "psycopg is required for direct loading. Install scripts/etl requirements first."
         ) from exc
 
-    return psycopg.connect(database_url)
+    return psycopg.connect(database_url, connect_timeout=10)
+
+
+def _serialize_common_payload(record: dict) -> dict:
+    def json_ready(value):
+        if value is None:
+            return None
+
+        if isinstance(value, float) and math.isnan(value):
+            return None
+
+        try:
+            if value != value:
+                return None
+        except Exception:
+            pass
+
+        if isinstance(value, dict):
+            return {key: json_ready(item) for key, item in value.items()}
+
+        if isinstance(value, (list, tuple, set)):
+            return [json_ready(item) for item in value]
+
+        if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
+            return json_ready(value.tolist())
+
+        if hasattr(value, "item") and not isinstance(value, (str, bytes, bytearray)):
+            try:
+                return json_ready(value.item())
+            except Exception:
+                pass
+
+        if hasattr(value, "isoformat") and not isinstance(value, (str, bytes, bytearray)):
+            try:
+                return value.isoformat()
+            except Exception:
+                pass
+
+        return value
+
+    payload = record.copy()
+    payload["tags"] = json.dumps(json_ready(payload.get("tags", [])))
+    payload["source_ids"] = json.dumps(json_ready(payload.get("source_ids", [])))
+    payload["metadata"] = json.dumps(json_ready(payload.get("metadata", {})))
+    return payload
 
 
 def load_industrial_sites(rows: Iterable[dict]) -> int:
@@ -58,9 +126,16 @@ def load_industrial_sites(rows: Iterable[dict]) -> int:
             %(naics_code)s,
             %(status)s,
             case
-                when %(longitude)s is not null and %(latitude)s is not null
-                then ST_SetSRID(ST_Point(%(longitude)s, %(latitude)s), 4326)
-                else null
+                when %(longitude)s::double precision is not null
+                    and %(latitude)s::double precision is not null
+                then ST_SetSRID(
+                    ST_Point(
+                        %(longitude)s::double precision,
+                        %(latitude)s::double precision
+                    ),
+                    4326
+                )
+                else null::geometry(Point, 4326)
             end,
             %(active_year)s,
             %(date_range_label)s,
@@ -151,12 +226,7 @@ def load_industrial_sites(rows: Iterable[dict]) -> int:
     """
 
     with _connect() as connection, connection.cursor() as cursor:
-        for record in records:
-            payload = record.copy()
-            payload["tags"] = json.dumps(payload.get("tags", []))
-            payload["source_ids"] = json.dumps(payload.get("source_ids", []))
-            payload["metadata"] = json.dumps(payload.get("metadata", {}))
-            cursor.execute(statement, payload)
+        cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
         connection.commit()
 
     return len(records)
@@ -222,12 +292,7 @@ def replace_toxic_release_records(rows: Iterable[dict], reporting_year: int | No
         if reporting_year is not None:
             cursor.execute("delete from toxic_release_records where reporting_year = %s", (reporting_year,))
 
-        for record in records:
-            payload = record.copy()
-            payload["tags"] = json.dumps(payload.get("tags", []))
-            payload["source_ids"] = json.dumps(payload.get("source_ids", []))
-            payload["metadata"] = json.dumps(payload.get("metadata", {}))
-            cursor.execute(statement, payload)
+        cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
         connection.commit()
 
     return len(records)
@@ -307,12 +372,7 @@ def load_health_concern_context(rows: Iterable[dict]) -> int:
     """
 
     with _connect() as connection, connection.cursor() as cursor:
-        for record in records:
-            payload = record.copy()
-            payload["tags"] = json.dumps(payload.get("tags", []))
-            payload["source_ids"] = json.dumps(payload.get("source_ids", []))
-            payload["metadata"] = json.dumps(payload.get("metadata", {}))
-            cursor.execute(statement, payload)
+        cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
         connection.commit()
 
     return len(records)
@@ -356,9 +416,16 @@ def load_pfas_sites(rows: Iterable[dict]) -> int:
             %(concentration_ppt)s,
             %(observed_year)s,
             case
-                when %(longitude)s is not null and %(latitude)s is not null
-                then ST_SetSRID(ST_Point(%(longitude)s, %(latitude)s), 4326)
-                else null
+                when %(longitude)s::double precision is not null
+                    and %(latitude)s::double precision is not null
+                then ST_SetSRID(
+                    ST_Point(
+                        %(longitude)s::double precision,
+                        %(latitude)s::double precision
+                    ),
+                    4326
+                )
+                else null::geometry(Point, 4326)
             end,
             %(category)s,
             %(subcategory)s,
@@ -402,12 +469,7 @@ def load_pfas_sites(rows: Iterable[dict]) -> int:
     """
 
     with _connect() as connection, connection.cursor() as cursor:
-        for record in records:
-            payload = record.copy()
-            payload["tags"] = json.dumps(payload.get("tags", []))
-            payload["source_ids"] = json.dumps(payload.get("source_ids", []))
-            payload["metadata"] = json.dumps(payload.get("metadata", {}))
-            cursor.execute(statement, payload)
+        cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
         connection.commit()
 
     return len(records)
@@ -497,12 +559,198 @@ def load_wastewater_sites(rows: Iterable[dict]) -> int:
     """
 
     with _connect() as connection, connection.cursor() as cursor:
-        for record in records:
-            payload = record.copy()
-            payload["tags"] = json.dumps(payload.get("tags", []))
-            payload["source_ids"] = json.dumps(payload.get("source_ids", []))
-            payload["metadata"] = json.dumps(payload.get("metadata", {}))
-            cursor.execute(statement, payload)
+        cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
+        connection.commit()
+
+    return len(records)
+
+
+def replace_power_plants(rows: Iterable[dict]) -> int:
+    records = list(rows)
+
+    statement = """
+        insert into power_plants (
+            slug,
+            plant_name,
+            fuel_type,
+            capacity_mw,
+            permit_status,
+            location,
+            active_year,
+            category,
+            subcategory,
+            layer_group,
+            evidence_type,
+            confidence_level,
+            geographic_level,
+            summary,
+            notes,
+            tags,
+            source_ids,
+            source_name,
+            source_url,
+            source_updated_at,
+            ingestion_version,
+            metadata
+        )
+        values (
+            %(slug)s,
+            %(plant_name)s,
+            %(fuel_type)s,
+            %(capacity_mw)s,
+            %(permit_status)s,
+            case
+                when %(longitude)s::double precision is not null
+                    and %(latitude)s::double precision is not null
+                then ST_SetSRID(
+                    ST_Point(
+                        %(longitude)s::double precision,
+                        %(latitude)s::double precision
+                    ),
+                    4326
+                )
+                else null::geometry(Point, 4326)
+            end,
+            %(active_year)s,
+            %(category)s,
+            %(subcategory)s,
+            %(layer_group)s,
+            %(evidence_type)s,
+            %(confidence_level)s,
+            %(geographic_level)s,
+            %(summary)s,
+            %(notes)s,
+            %(tags)s::jsonb,
+            %(source_ids)s::jsonb,
+            %(source_name)s,
+            %(source_url)s,
+            %(source_updated_at)s,
+            %(ingestion_version)s,
+            %(metadata)s::jsonb
+        )
+        on conflict (slug) do update set
+            plant_name = excluded.plant_name,
+            fuel_type = excluded.fuel_type,
+            capacity_mw = excluded.capacity_mw,
+            permit_status = excluded.permit_status,
+            location = coalesce(excluded.location, power_plants.location),
+            active_year = excluded.active_year,
+            category = excluded.category,
+            subcategory = excluded.subcategory,
+            layer_group = excluded.layer_group,
+            evidence_type = excluded.evidence_type,
+            confidence_level = excluded.confidence_level,
+            geographic_level = excluded.geographic_level,
+            summary = excluded.summary,
+            notes = excluded.notes,
+            tags = excluded.tags,
+            source_ids = excluded.source_ids,
+            source_name = excluded.source_name,
+            source_url = excluded.source_url,
+            source_updated_at = excluded.source_updated_at,
+            ingestion_version = excluded.ingestion_version,
+            metadata = excluded.metadata,
+            updated_at = now();
+    """
+
+    with _connect() as connection, connection.cursor() as cursor:
+        cursor.execute("delete from power_plants")
+        if records:
+            cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
+        connection.commit()
+
+    return len(records)
+
+
+def replace_hazardous_sites(rows: Iterable[dict]) -> int:
+    records = list(rows)
+
+    statement = """
+        insert into hazardous_sites (
+            slug,
+            site_name,
+            site_class,
+            status,
+            boundary,
+            remediation_year,
+            category,
+            subcategory,
+            layer_group,
+            evidence_type,
+            confidence_level,
+            geographic_level,
+            summary,
+            notes,
+            tags,
+            source_ids,
+            source_name,
+            source_url,
+            source_updated_at,
+            ingestion_version,
+            metadata
+        )
+        values (
+            %(slug)s,
+            %(site_name)s,
+            %(site_class)s,
+            %(status)s,
+            case
+                when %(longitude)s::double precision is not null
+                    and %(latitude)s::double precision is not null
+                then ST_SetSRID(
+                    ST_Point(
+                        %(longitude)s::double precision,
+                        %(latitude)s::double precision
+                    ),
+                    4326
+                )
+                else null::geometry(Geometry, 4326)
+            end,
+            %(remediation_year)s,
+            %(category)s,
+            %(subcategory)s,
+            %(layer_group)s,
+            %(evidence_type)s,
+            %(confidence_level)s,
+            %(geographic_level)s,
+            %(summary)s,
+            %(notes)s,
+            %(tags)s::jsonb,
+            %(source_ids)s::jsonb,
+            %(source_name)s,
+            %(source_url)s,
+            %(source_updated_at)s,
+            %(ingestion_version)s,
+            %(metadata)s::jsonb
+        )
+        on conflict (slug) do update set
+            site_name = excluded.site_name,
+            site_class = excluded.site_class,
+            status = excluded.status,
+            boundary = coalesce(excluded.boundary, hazardous_sites.boundary),
+            remediation_year = excluded.remediation_year,
+            category = excluded.category,
+            subcategory = excluded.subcategory,
+            layer_group = excluded.layer_group,
+            evidence_type = excluded.evidence_type,
+            confidence_level = excluded.confidence_level,
+            geographic_level = excluded.geographic_level,
+            summary = excluded.summary,
+            notes = excluded.notes,
+            tags = excluded.tags,
+            source_ids = excluded.source_ids,
+            source_name = excluded.source_name,
+            source_url = excluded.source_url,
+            source_updated_at = excluded.source_updated_at,
+            ingestion_version = excluded.ingestion_version,
+            metadata = excluded.metadata,
+            updated_at = now();
+    """
+
+    with _connect() as connection, connection.cursor() as cursor:
+        cursor.execute("delete from hazardous_sites")
+        if records:
+            cursor.executemany(statement, [_serialize_common_payload(record) for record in records])
         connection.commit()
 
     return len(records)

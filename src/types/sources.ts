@@ -22,6 +22,11 @@ export type SourceProgramTier =
   | "Global / V2 Planned"
   | "Literature / Editorial";
 
+export type SourceImplementationRole =
+  | "primary-operational"
+  | "methodology-reference"
+  | "reference-benchmark";
+
 export type SourceRegistryEntry = {
   id: string;
   slug: string;
@@ -47,4 +52,6 @@ export type SourceRegistryEntry = {
   upstreamDatasets?: string[];
   downloadability?: "public-download" | "downloadable-with-caveats" | "reference-only";
   ingestionMethod?: "direct-ingest" | "derived-from-methodology" | "reference-only";
+  implementationRole?: SourceImplementationRole;
+  mimicContributions?: string[];
 };

@@ -85,6 +85,14 @@ def build_crosswalk(
     naics: pd.DataFrame,
     state_filter: set[str],
 ) -> pd.DataFrame:
+    facilities["registry_id"] = facilities["registry_id"].fillna("").astype(str).str.strip()
+    program_links["registry_id"] = program_links["registry_id"].fillna("").astype(str).str.strip()
+    naics["registry_id"] = naics["registry_id"].fillna("").astype(str).str.strip()
+
+    facilities = facilities[facilities["registry_id"] != ""].copy()
+    program_links = program_links[program_links["registry_id"] != ""].copy()
+    naics = naics[naics["registry_id"] != ""].copy()
+
     if state_filter:
         facilities = facilities[facilities["fac_state"].isin(state_filter)].copy()
         program_links = program_links[program_links["state_code"].isin(state_filter)].copy()
@@ -136,6 +144,7 @@ def read_filtered_related_rows(path: str, registry_ids: set[str], column_name: s
     chunks: list[pd.DataFrame] = []
     for chunk in pd.read_csv(path, low_memory=False, chunksize=250000):
         normalized = normalize_columns(chunk)
+        normalized[column_name] = normalized[column_name].fillna("").astype(str).str.strip()
         filtered = normalized[normalized[column_name].astype(str).isin(registry_ids)].copy()
         if not filtered.empty:
             chunks.append(filtered)
@@ -149,10 +158,22 @@ def read_filtered_related_rows(path: str, registry_ids: set[str], column_name: s
 def build_load_rows(frame: pd.DataFrame) -> list[dict]:
     rows: list[dict] = []
     for record in frame.to_dict("records"):
+        facility_name = record.get("fac_name")
+        if not isinstance(facility_name, str) or not facility_name.strip():
+            facility_name = f"FRS facility {record.get('registry_id')}"
+
+        program_acronyms = record.get("program_acronyms")
+        if not isinstance(program_acronyms, list):
+            program_acronyms = []
+
+        tri_ids = record.get("tri_ids")
+        if not isinstance(tri_ids, list):
+            tri_ids = []
+
         rows.append(
             {
                 "slug": record["slug"],
-                "facility_name": record["fac_name"],
+                "facility_name": facility_name,
                 "operator_name": None,
                 "naics_code": record.get("naics_code") or None,
                 "status": "registered",
@@ -198,12 +219,12 @@ def build_load_rows(frame: pd.DataFrame) -> list[dict]:
                     "legalHistoricalContext": ["FRS identity rows support later joins to regulatory context, not legal conclusions."],
                     "uncertaintyNote": "FRS records help normalize facilities across datasets, but linkage gaps and stale identifiers still occur.",
                     "sourceStats": [
-                        {"label": "Programs linked", "value": str(len(record.get("program_acronyms", []) or []))},
-                        {"label": "TRI ids", "value": str(len(record.get("tri_ids", []) or []))},
+                        {"label": "Programs linked", "value": str(len(program_acronyms))},
+                        {"label": "TRI ids", "value": str(len(tri_ids))},
                     ],
                     "frsId": record.get("registry_id"),
-                    "programAcronyms": record.get("program_acronyms", []),
-                    "triIds": record.get("tri_ids", []),
+                    "programAcronyms": program_acronyms,
+                    "triIds": tri_ids,
                 },
             }
         )
@@ -230,14 +251,17 @@ def main() -> None:
     facilities = normalize_columns(
         pd.read_csv(file_map["FRS_FACILITIES.csv"], low_memory=False, nrows=args.limit if args.limit else None)
     )
+    facilities["registry_id"] = facilities["registry_id"].fillna("").astype(str).str.strip()
 
     if args.limit:
-        registry_ids = {str(value) for value in facilities["registry_id"].dropna().astype(str)}
+        registry_ids = {value for value in facilities["registry_id"] if value}
         program_links = read_filtered_related_rows(file_map["FRS_PROGRAM_LINKS.csv"], registry_ids, "registry_id")
         naics = read_filtered_related_rows(file_map["FRS_NAICS_CODES.csv"], registry_ids, "registry_id")
     else:
         program_links = normalize_columns(pd.read_csv(file_map["FRS_PROGRAM_LINKS.csv"], low_memory=False))
         naics = normalize_columns(pd.read_csv(file_map["FRS_NAICS_CODES.csv"], low_memory=False))
+        program_links["registry_id"] = program_links["registry_id"].fillna("").astype(str).str.strip()
+        naics["registry_id"] = naics["registry_id"].fillna("").astype(str).str.strip()
 
     crosswalk = build_crosswalk(facilities, program_links, naics, state_filter)
     cleaned_base = cleaned_path("epa-frs", "frs_facility_crosswalk")

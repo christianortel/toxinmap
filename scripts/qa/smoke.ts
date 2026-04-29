@@ -1,3 +1,5 @@
+export {};
+
 const requiredChecks = [
   { path: "/", contains: ["toxinmap.com"] },
   { path: "/explore", contains: ["toxinmap.com"] },
@@ -15,7 +17,7 @@ const requiredChecks = [
 ];
 
 const apiChecks = [
-  { path: "/api/entities", expectArray: true },
+  { path: "/api/entities?layerId=pfas-sites&limit=5", expectArray: true },
   { path: "/api/sources", expectArray: true },
   { path: "/api/case-studies", expectArray: true },
   { path: "/api/nearby?lat=34.22&lng=-78.75&radius=100&groups=official,emerging,legal", expectObjectKeys: ["total", "results"] },

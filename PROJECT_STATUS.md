@@ -1,0 +1,494 @@
+# PROJECT_STATUS
+
+## Current State
+
+- App is running locally at `http://127.0.0.1:3000`.
+- Public renderer path is Three.js on `/` and `/explore`.
+- Local PostgreSQL is reachable on `localhost:5432`.
+- Current verified managed runtime from `npm run local:status`:
+  - `listenerPid = managedPid = 28940`
+  - `runtimeMode = prod-start`
+  - `healthOk = true`
+- Current verified totals from `/api/health`:
+  - `totalEntities = 383,940`
+  - `totalLayers = 9`
+- Current verified DB counts from `/api/health`:
+  - `industrialSites = 361,445`
+  - `toxicReleaseRecords = 76,218`
+  - `pfasSites = 749`
+  - `wastewaterSites = 3,236`
+  - `powerPlants = 188`
+  - `hazardousSites = 1,506`
+  - `legalMarkers = 133,261`
+  - `sentinelSpecies = 0`
+  - `sourceRegistry = 27`
+- Current preferred core layer source:
+  - `industrialSites = database`
+  - `pfasSites = database`
+  - `wastewaterSites = database`
+- Current preferred derived layer source:
+  - `airToxicsRegions = database`
+  - `reproductiveRegions = database`
+  - `sentinelSpecies = etl-file`
+
+## Completed In This Run
+
+- Completed the search UI reducer-ownership follow-through slice.
+- Updated `SearchControlShell` so entity-result selection passes the actual `isSearchOpen` store state into `resolveExplorerEntityFocusState(...)`.
+- Removed the remaining production call-site workaround where the search UI pre-declared search as closed before applying the shared entity-focus reducer.
+- Verified the reducer now genuinely owns the live transition from open search results to selected record:
+  - selected entity is set
+  - detail drawer opens
+  - search surface closes
+  - coordinate-bearing search result focuses the camera at height `420000`
+- Rebuilt and restarted the managed runtime so local `127.0.0.1:3000` is running this exact UI behavior.
+- Completed the live search-result focus-state audit slice.
+- Fixed `resolveExplorerEntityFocusState(...)` so search/entity focus owns the complete state transition instead of relying on the caller to pre-close the search surface.
+- Coordinate-bearing and coordinate-missing entity focus now both:
+  - select the entity
+  - open the detail drawer
+  - close the search surface
+- Coordinate-bearing entity focus still:
+  - sets a selected-record camera target
+  - uses canonical selected-record focus height `= 420000`
+  - clears home-camera state
+- Strengthened `qa:validate-interaction-contract` so live DB-backed South Cary and Briarwood wastewater search rows now prove:
+  - search result IDs and entity IDs match the expected live wastewater records
+  - coordinates are present
+  - the reducer selects the target entity
+  - the drawer opens
+  - the search surface closes
+  - camera target label and coordinates come from the clicked result
+  - camera target height is `420000`
+- Strengthened `qa:validate-selection-context-contract` so synthetic coordinate-bearing and coordinate-missing search activation paths both prove search closure at the reducer boundary.
+- This closes the gap where `SearchControlShell` happened to close search before reducer activation, but the shared reducer contract did not guarantee that behavior for future callers.
+- Completed the detail drawer context-window audit slice.
+- Moved official-signal and context-section display windows into shared `buildDetailDrawerDisplayState(...)` instead of leaving them as component-local `SectionCard` slicing.
+- Added shared `DetailDrawerContextSectionWindow` state so every detail context section now carries:
+  - visible items
+  - hidden count
+  - total count
+  - configured limit
+- Updated the selected-record drawer to render official signals and context sections from shared display-window state.
+- Strengthened `qa:validate-detail-summary` so representative live PFAS, hazardous-site, wastewater, and industrial records now prove:
+  - official signals obey the context-item limit
+  - every context section obeys the context-item limit
+  - hidden/visible/total accounting is internally consistent
+  - source/stat/release/source-card/case-study display windows still obey their limits
+- This closes the gap where continuity said context item windows were shared, but only stats/releases/sources/case studies were actually part of shared display state.
+- Completed the live inspection-label presentation parity audit slice.
+- Added shared `getMapInspectionLabelPresentation(...)` so selected and unselected map-label copy has one source of truth for:
+  - title
+  - layer label
+  - strongest source label
+  - evidence label
+  - confidence label
+  - selected full readout text
+  - unselected compact layer/title text
+- Strengthened `qa:validate-live-label-quality` so representative live DB-backed local payloads now prove selected labels include source/evidence context, not only title/confidence.
+- Strengthened `qa:validate-local-marker-rendering` so synthetic selected and unselected labels must match the shared presentation rules.
+- This closes the documentation-vs-validator gap where project status claimed live source/evidence label coverage, but the live validator only asserted title and confidence.
+- Completed the live selected-marker render-emphasis audit slice.
+- Strengthened `qa:validate-live-label-quality` so representative live DB-backed local payloads now prove selected markers get:
+  - larger selected radius than the unselected baseline
+  - higher selected altitude than the unselected baseline
+  - a visible selection beacon outside the halo
+  - stronger selected halo opacity than the unselected marker style
+- This closes the gap where selected-marker beacon and emphasis were protected by synthetic QA, but not by live Cape Fear PFAS and Apex wastewater payloads.
+- Completed the all-live-label activation parity audit slice.
+- Strengthened `qa:validate-live-label-quality` so live DB-backed local labels now prove:
+  - selected label activation resolves to a live entity
+  - selected label activation equals selected marker activation
+  - every rendered live inspection label resolves to a current visible entity
+  - every rendered live inspection label resolves to the same activation as its corresponding marker
+- This closes the gap where synthetic marker QA protected label-click parity, but live Cape Fear and Apex label audits only protected label content, sizing, and density.
+- The no-browser readiness path now protects stale-label and non-clickable-label regressions against representative live map payloads.
+- Completed the detail drawer display-window contract slice.
+- Added shared detail drawer display state in `src/lib/map/detail-drawer-state.ts` so the drawer and validators use one source of truth for:
+  - summary derivation
+  - secondary stat windows
+  - release record windows
+  - source-card windows
+  - related case-study windows
+  - context item windows
+- Updated the selected-record drawer to consume the shared display-window state instead of maintaining separate inline limits.
+- Strengthened `qa:validate-detail-summary` so representative PFAS, hazardous-site, wastewater, and industrial records must keep:
+  - primary source cards ranked first
+  - display windows within the configured limits
+  - no more than four primary facts
+  - concise release/source/case-study windows rather than unbounded drawer lists
+- This keeps selected detail drawers scannable as richer source-backed records are added.
+- Completed the enriched search-result presentation contract slice.
+- Extracted search-result presentation rules into `src/lib/map/search-presentation.ts`.
+- Updated the search UI to use shared helpers for:
+  - match label, e.g. `Record`
+  - insight badges, e.g. layer, evidence, source, chemistry/system
+  - result action label, e.g. `Fly to`, `Select`, or `Open`
+- Strengthened `qa:validate-interaction-contract` so live wastewater search results must keep:
+  - `Wastewater`
+  - `Proxy`
+  - `NPDES wastewater record`
+  - `PFAS / Wastewater-associated compounds`
+  - `Fly to` action label for coordinate-bearing records
+- This keeps search as a pre-click triage surface, not only text matching.
+- Completed the local inspection-label activation contract slice.
+- Added shared `resolveExplorerEntityActivationById(...)` so label-click activation resolves through the same activation logic as marker clicks.
+- Updated the Three.js globe label-click path to resolve label entity IDs through the shared activation helper instead of doing component-local entity lookup and activation.
+- Updated `qa:validate-local-marker-rendering` to:
+  - build synthetic renderable records through `buildGlobeRenderableEntities(...)`
+  - validate selected label activation matches selected marker activation
+  - validate missing label entity IDs fail closed
+- This further preserves the shared globe-renderable preparation contract while making label-click behavior explicitly testable without a browser.
+- Completed the renderer/validator parity-drift reduction slice for local label quality.
+- Extracted shared globe renderable-entity preparation into `buildGlobeRenderableEntities(...)`.
+- The Three.js renderer now uses the shared builder for:
+  - selection-priority render ordering
+  - layer-specific point style
+  - zoom-scaled point radius
+  - zoom-scaled point altitude
+  - selected-marker render emphasis
+- `qa:validate-live-label-quality` now uses the same shared builder instead of recreating renderable fields in the QA script.
+- This preserves the current no-browser live label contract while reducing future drift risk when marker rendering changes.
+- Completed the selected-record detail actionability slice.
+- Added a structured `readFirst` summary to entity detail summaries with:
+  - what the selected point is
+  - why it matters
+  - strongest source backing
+  - measured-vs-inferred boundary
+- Updated the selected-record drawer so the first scannable card is now `Read this first`, not generic overview copy.
+- Kept source/evidence/chemistry signals near the top while reducing repeated explanatory text.
+- Added stable DOM contract attributes for the read-first block:
+  - `data-testid="detail-read-first"`
+  - `data-read-first-what`
+  - `data-read-first-source`
+  - `data-read-first-measurement`
+- Rebuilt `qa:validate-detail-summary` around current DB-backed entity IDs:
+  - `usgs-pfas-pfas-recon-nc-3-pub`
+  - `hazard-frs-110001968176`
+  - `npdes-nc0065102-001`
+  - `frs-110000349766.0`
+- Added `qa:validate-detail-summary` to `local:verify` so future readiness runs protect the detail-read-first contract.
+- Completed the first selected-record action affordance slice.
+- Detail summaries now expose `sourceActions` derived from the strongest ranked source records.
+- The drawer now renders a `Source actions` card immediately after `Read this first`, with direct public-source links.
+- Source cards in the lower source section now make source names clickable instead of passive text.
+- `qa:validate-detail-summary` now also verifies representative source-action IDs and source URLs for:
+  - USGS PFAS
+  - EPA SEMS
+  - EPA NPDES
+  - EPA TRI
+- Completed the selected-record primary-facts and nearby-context affordance slice.
+- Detail summaries now expose `primaryFacts`, which turn source stats into scannable fact cards with plain-language helper text.
+- Representative detail facts now cover:
+  - PFAS detections and summed PFAS concentration
+  - wastewater permit and design flow
+  - hazardous-site class and linked programs
+  - TRI total releases and reporting year
+- The selected-record drawer now renders a `Primary facts` card instead of raw stat tiles.
+- The selected-record drawer now exposes a `Nearby context` card when a selected record is inside a nearby focus.
+- The new nearby refocus action keeps the selected record and drawer open while moving the camera back to the surrounding investigation area.
+- Completed the local map-inspection label slice.
+- Local concrete point markers now generate lightweight map-side inspection labels in the local camera band.
+- Selected local labels show:
+  - selected record title
+  - layer short label
+  - strongest source family
+  - evidence type
+  - confidence level
+- Unselected high-priority local labels show:
+  - layer short label
+  - record title
+- Labels are clickable and use the same entity activation path as marker clicks.
+- Inspection labels stay disabled outside the local camera band to avoid broad-scale clutter.
+- Completed the selected map-side readout polish slice.
+- Selected local labels now expose evidence/confidence directly on the map, e.g. `Direct evidence / High confidence`.
+- Unselected labels intentionally omit evidence/confidence copy to keep local label weight bounded.
+- `qa:validate-local-marker-rendering` now protects:
+  - selected evidence/confidence text
+  - short unselected label copy
+  - maximum inspection-label count
+- Completed the dense-scene local label readability slice.
+- Local inspection-label generation now suppresses unselected labels inside the selected marker's close coordinate exclusion zone.
+- Selected local labels remain first and larger than unselected labels.
+- Farther high-priority local labels still render, so the selected marker stays dominant without removing all nearby context.
+- `qa:validate-local-marker-rendering` now also protects:
+  - selected label first ordering
+  - selected label size dominance
+  - selected-adjacent label suppression
+  - farther local label preservation
+- Completed the live-data local label quality audit slice.
+- Added `qa:validate-live-label-quality`, which fetches representative live local `/api/map-entities` payloads and runs the real local inspection-label builder against DB-backed records.
+- Wired `qa:validate-live-label-quality` into `local:verify`.
+- Current live label quality validation covers:
+  - Cape Fear PFAS local drilldown
+  - Apex wastewater local drilldown
+  - selected label title/source/evidence/confidence content
+  - selected label first ordering and size dominance
+  - short unselected label copy
+  - capped label count
+  - farther label preservation when local context exists
+
+## Verified Behavior
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run qa:validate-local-marker-rendering`
+- `npm run qa:validate-live-label-quality`
+- `npm run qa:validate-interaction-contract`
+- `npm run build`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local/up.ps1 -SkipBuild -AllowDegradedWithoutDb`
+- `npm run local:verify`
+- `npm run local:status`
+- `npm run qa:validate-selected-state-contract`
+- `npm run qa:validate-detail-summary`
+- `npm run qa:validate-selection-context-contract`
+
+## Verification Summary
+
+- `local:verify` passed with:
+  - `readyForLocalUse = true`
+  - `readyForFullLocalStack = true`
+  - `dataMode = database`
+- Current verified opening atlas remains:
+  - `visible = 49`
+  - `industrial-sites = 17`
+  - `pfas-sites = 10`
+  - `wastewater-sites = 8`
+  - `hazardous-sites = 1`
+  - `legal-markers = 8`
+  - `air-toxics-regions = 5`
+- Current verified local Cape Fear drilldown remains:
+  - `visible = 96`
+  - `aggregates = 0`
+  - top local records include PFAS, wastewater, and industrial points
+- Current verified detail-read-first examples:
+  - PFAS record reads as `PFAS tap water sample / Public supply`
+  - PFAS source backing reads as `USGS PFAS backs this record as federal research lineage.`
+  - PFAS measured boundary reads as direct monitoring / sampling evidence, not personal exposure proof
+  - hazardous and wastewater records read as pathway or facility context, not measured exposure concentration
+  - industrial TRI record reads as direct monitoring or sampling evidence with EPA TRI lineage
+- Current verified source-action examples:
+  - PFAS primary action: `Open USGS PFAS`
+  - hazardous primary action: `Open EPA SEMS`
+  - wastewater primary action: `Open EPA NPDES`
+  - industrial primary action: `Open EPA TRI`
+- Current verified primary-fact examples:
+  - PFAS: `Detections`, `PFAS sum`, `Evidence`, `Confidence`
+  - wastewater: `Permit`, `Design flow`, `Evidence`, `Confidence`
+  - hazardous: `Hazard class`, `TRI ids`, `Programs`
+  - industrial: `Total releases`, `TRI year`, `Evidence`, `Confidence`
+- Current verified detail display-window behavior:
+  - official signals are capped at 3 visible rows
+  - every context section is capped at 3 visible rows
+  - official-signal and context-section windows now report visible, hidden, total, and limit from shared display state
+  - source cards are capped at 3 visible cards
+  - secondary stats are capped at 4 visible facts
+  - TRI release rows are capped at 2 visible records
+  - related case studies are capped at 2 visible cards
+  - context sections are capped at 3 visible rows
+  - PFAS, hazardous-site, wastewater, and industrial details all keep their highest-ranked source first
+- Current verified selected-nearby refocus behavior:
+  - preserves `selectedEntityId`
+  - keeps the drawer open
+  - restores the nearby camera target
+  - keeps `isCameraAtHome = false`
+- Current verified map-inspection label behavior:
+  - local concrete point labels are generated from object-layer markers
+  - selected and unselected label copy is derived through shared `getMapInspectionLabelPresentation(...)`
+  - selected label includes strongest source context, e.g. `PFAS / USGS PFAS`
+  - selected label includes evidence/confidence context, e.g. `Direct evidence / High confidence`
+  - unselected labels stay short and omit evidence/confidence copy
+  - live Cape Fear PFAS and Apex wastewater labels now prove selected source/evidence/confidence presentation, not only title presence
+  - live unselected labels now prove compact layer/title presentation
+  - inspection labels remain capped to avoid local text clutter
+  - selected-adjacent unselected labels are suppressed in dense local scenes
+  - farther unselected labels remain visible after suppression
+  - selected label remains first and larger than unselected labels
+  - live Cape Fear PFAS label audit returns 5 capped labels from 95 object entities
+  - live Apex wastewater label audit returns 5 capped labels from 17 object entities
+  - both live audits preserve farther unselected context after selected-label dominance rules
+  - live label quality validation now exercises the same renderable-entity preparation as the Three.js renderer
+  - live label quality validation now proves selected label activation matches selected marker activation
+  - live label quality validation now proves every rendered live inspection label resolves to a current entity
+  - live label quality validation now proves every rendered live inspection label activation matches its marker activation
+  - live label quality validation now proves selected live markers render with stronger radius, altitude, halo, and beacon emphasis than their unselected baseline
+  - synthetic marker QA now exercises shared renderable-entity preparation rather than script-local renderable fields
+  - label-click activation resolves to the same selected entity as marker-click activation
+  - missing label entity IDs fail closed instead of creating stale selection state
+  - labels sit above marker altitude
+  - labels are disabled in the regional camera band
+- Current verified search-result presentation behavior:
+  - South Cary wastewater search result presents `Record`, `Fly to`, and badges for `Wastewater`, `Proxy`, `NPDES wastewater record`, and `PFAS / Wastewater-associated compounds`
+  - Briarwood wastewater search result presents `Record`, `Fly to`, and the same layer/evidence/source/chemistry badge contract
+- Current verified search-result focus behavior:
+  - South Cary search focus selects `npdes-nc0065102-001`, opens the drawer, closes search, targets `SOUTH CARY WRF`, and focuses `[-78.4528, 35.3848]` at height `420000`
+  - Briarwood search focus selects `npdes-nc0062740-001`, opens the drawer, closes search, targets `BRIARWOOD FARMS WWTP`, and focuses `[-78.4838, 35.4122]` at height `420000`
+  - coordinate-missing search activation also closes search while preserving the current camera target
+  - the live search UI now passes current `isSearchOpen` into the shared reducer instead of pre-closing it
+
+## Current Blockers
+
+- No release-readiness blockers are currently open.
+- Manual browser visual validation was not performed in this run to honor the no-new-tabs instruction.
+- Browser-launch validation remains intentionally excluded from automated readiness unless the user explicitly asks for it.
+- `sentinel-species` remains ETL-backed by verified source truth:
+  - `preferredDerivedLayerSource.sentinelSpecies = etl-file`
+  - `sentinelSpecies = 0` DB rows
+
+## Highest-Priority Next Steps
+
+1. Preserve the live search-result focus-state contract.
+   - current contract is now complete for:
+     - live coordinate-bearing wastewater search rows
+     - reducer-owned selected entity state
+     - reducer-owned drawer open state
+     - reducer-owned search closed state
+     - production `SearchControlShell` passing actual `isSearchOpen` state into the reducer
+     - selected-record camera target label, coordinates, and focus height
+     - coordinate-missing search activation preserving the current camera target while still closing search
+   - if search activation, search result presentation, or non-map focus changes, update together:
+     - `src/lib/map/entity-activation.ts`
+     - `src/components/explore/search-control-shell.tsx`
+     - `scripts/qa/validate-interaction-contract.ts`
+     - `scripts/qa/validate-selection-context-contract.ts`
+   - do not rely on call sites to pre-close search before applying an entity-focus reducer.
+   - keep validation no-browser/API-contract based unless browser testing is explicitly requested.
+2. Preserve the detail drawer context-window contract.
+   - current contract is now complete for:
+     - shared official-signal windows
+     - shared context-section windows
+     - visible/hidden/total/limit accounting
+     - live PFAS, hazardous-site, wastewater, and industrial validation
+   - if detail context sections or official-signal presentation changes, update together:
+     - `src/lib/map/detail-drawer-state.ts`
+     - `src/components/explore/detail-drawer-shell.tsx`
+     - `scripts/qa/validate-detail-summary.ts`
+   - keep validation no-browser/API-contract based unless browser testing is explicitly requested.
+2. Preserve the live inspection-label presentation contract.
+   - current contract is now complete for:
+     - shared `getMapInspectionLabelPresentation(...)`
+     - synthetic selected label exact selected-text validation
+     - synthetic unselected label exact compact layer/title validation
+     - live Cape Fear PFAS selected label layer/source/evidence/confidence validation
+     - live Apex wastewater selected label layer/source/evidence/confidence validation
+     - live unselected labels staying in compact layer/title form
+   - if map label copy changes, update together:
+     - `src/lib/map/globe-rendering.ts`
+     - `scripts/qa/validate-local-marker-rendering.ts`
+     - `scripts/qa/validate-live-label-quality.ts`
+   - keep validation no-browser/API-contract based unless browser testing is explicitly requested.
+3. Preserve the live selected-marker render-emphasis contract.
+   - current contract is now complete for:
+     - synthetic selected beacon validation
+     - live Cape Fear PFAS selected radius and altitude emphasis
+     - live Apex wastewater selected radius and altitude emphasis
+     - live selected beacon radius and opacity validation
+     - live selected halo stronger than unselected halo
+   - if selected marker styling or renderable preparation changes, update together:
+     - `src/lib/map/globe-rendering.ts`
+     - `src/components/explore/three-safe-globe.tsx`
+     - `scripts/qa/validate-local-marker-rendering.ts`
+     - `scripts/qa/validate-live-label-quality.ts`
+     - `scripts/qa/validate-selected-state-contract.ts`
+   - keep validation no-browser/API-contract based unless browser testing is explicitly requested.
+4. Preserve the live local label activation contract.
+   - current contract is now complete for:
+     - synthetic marker/label activation parity
+     - live Cape Fear PFAS selected label/marker activation parity
+     - live Apex wastewater selected label/marker activation parity
+     - every rendered live label resolving to a current visible entity
+     - every rendered live label matching its corresponding marker activation
+     - missing synthetic label IDs failing closed
+   - if local label generation, visible-entity filtering, or entity activation changes, update together:
+     - `src/lib/map/globe-rendering.ts`
+     - `src/lib/map/entity-activation.ts`
+     - `src/components/explore/three-safe-globe.tsx`
+     - `scripts/qa/validate-local-marker-rendering.ts`
+     - `scripts/qa/validate-live-label-quality.ts`
+   - keep validation no-browser/API-contract based unless browser testing is explicitly requested.
+5. Preserve the detail drawer display-window contract.
+   - current contract is now complete for:
+     - shared `buildDetailDrawerDisplayState(...)`
+     - shared `buildDetailDrawerItemWindow(...)`
+     - shared `detailDrawerDisplayLimits`
+     - live validation for PFAS, hazardous-site, wastewater, and industrial detail records
+   - if detail drawer layout or summary richness changes, update together:
+     - `src/lib/map/detail-drawer-state.ts`
+     - `src/lib/data/detail-summary.ts`
+     - `src/components/explore/detail-drawer-shell.tsx`
+     - `scripts/qa/validate-detail-summary.ts`
+   - keep detail growth scannable by changing limits deliberately, not by adding unbounded lists.
+4. Preserve the live local label quality and activation contracts.
+   - current contract is now complete for:
+     - renderer and no-browser validator use the same `buildGlobeRenderableEntities(...)` helper
+     - synthetic marker QA also uses the shared renderable builder
+     - selected marker render emphasis is generated through the same code path for live rendering and live label QA
+     - local label QA still validates against Cape Fear PFAS and Apex wastewater live map payloads
+     - label clicks resolve through the same activation logic as marker clicks
+     - live labels resolve to current visible entities
+     - missing label entity IDs fail closed
+   - next engineering-quality gap:
+     - if marker sizing, altitude, layer styling, or selected emphasis changes, update the shared helper first
+     - keep renderer and validators consuming the shared helper rather than reintroducing script-local copies
+     - keep label-click activation routed through `resolveExplorerEntityActivationById(...)`
+     - keep no-browser/API-contract validation unless browser testing is explicitly requested
+5. Preserve the local inspection-label contract during future rendering changes.
+   - current contract is now complete for:
+     - title
+     - layer/source
+     - evidence/confidence
+     - selected-first ordering
+     - selected size dominance
+     - selected-adjacent label suppression
+     - farther label preservation
+     - live Cape Fear and Apex local label audits
+     - marker/label activation parity
+   - keep label count and visual weight bounded
+   - if map labels or marker activation changes, update together:
+     - `src/lib/map/globe-rendering.ts`
+     - `src/lib/map/entity-activation.ts`
+     - `src/components/explore/three-safe-globe.tsx`
+     - `scripts/qa/validate-local-marker-rendering.ts`
+6. Preserve enriched search-result contracts.
+   - current contract is now complete for:
+     - `/api/search` entity rows include coordinates plus layer/evidence/source/system/chemistry hints
+     - UI presentation uses shared `search-presentation` helpers
+     - live interaction validation proves representative wastewater search rows expose `Record`, `Fly to`, and high-value insight badges
+   - if search result construction or rendering changes, update together:
+     - `src/types/explorer.ts`
+     - `src/lib/map/search.ts`
+     - `src/lib/map/search-presentation.ts`
+     - `src/components/explore/search-control-shell.tsx`
+     - `scripts/qa/validate-interaction-contract.ts`
+7. Preserve the detail primary-facts and nearby-refocus contracts.
+   - if detail stats or selected-nearby recovery changes, update together:
+     - `src/lib/data/detail-summary.ts`
+     - `src/lib/map/selection-context.ts`
+     - `src/components/explore/detail-drawer-shell.tsx`
+     - `scripts/qa/validate-detail-summary.ts`
+     - `scripts/qa/validate-selection-context-contract.ts`
+8. Preserve the detail-read-first contract.
+   - if detail summary logic changes, update together:
+     - `src/lib/data/detail-summary.ts`
+     - `src/components/explore/detail-drawer-shell.tsx`
+     - `scripts/qa/validate-detail-summary.ts`
+     - `scripts/local/verify.ps1`
+9. Preserve the atomic surface-state contract.
+   - future selection/focus recovery should use `applyExplorerSurfaceState(...)`
+   - avoid sequencing lower-level setters for one cross-surface user intent
+10. Preserve no-browser readiness.
+   - do not reintroduce browser-launch validation into `local:verify`
+   - use API/contract validation unless the user explicitly asks for browser automation
+
+## Reality Check
+
+- The app is locally usable, DB-backed, and running on the current production build.
+- Search rows now explain what records are before click.
+- Search-result activation now owns the full production transition from open search result to selected record, including closing the search surface and focusing coordinate-bearing records.
+- Search-result presentation is now shared and live-validated for the high-value wastewater search path.
+- Selected detail drawers now explain what the opened dot is, why it matters, what source backs it, whether it is measured or inferred, where to open the primary public source, what the key facts mean, and how to refocus the surrounding nearby area without losing selection.
+- Detail drawer display windows are now shared and live-validated, so richer source-backed records do not silently turn the drawer into an unbounded dashboard.
+- Local map labels now make high-priority local dots easier to identify before and during click.
+- The renderer and no-browser live label validator now share renderable-entity preparation, and live QA now protects selected marker render emphasis against real DB-backed payloads.
+- Local label clicks now have a shared, no-browser validated activation path across synthetic fixtures and representative live DB-backed map payloads.
+- The next meaningful product gap remains refining map-side readout and inspection without increasing visual clutter.

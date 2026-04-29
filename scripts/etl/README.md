@@ -55,7 +55,7 @@ python scripts/etl/ingest_tri.py --year 2024 --geography US
 3. Add compliance and enforcement context:
 
 ```bash
-python scripts/etl/ingest_echo.py
+python scripts/etl/ingest_echo.py --states NC,LA,OH,PA,DE,MI,WI
 ```
 
 4. Add documented PFAS sites and tap-water context:
@@ -88,7 +88,7 @@ python scripts/etl/validate_fixture_rows.py
 ```bash
 python scripts/etl/ingest_frs.py --states NC,LA,OH,PA,DE,MI,WI --load
 python scripts/etl/ingest_tri.py --year 2024 --geography US --load
-python scripts/etl/ingest_echo.py --load
+python scripts/etl/ingest_echo.py --states NC,LA,OH,PA,DE,MI,WI --load
 python scripts/etl/ingest_atsdr_pfas.py --load
 python scripts/etl/ingest_usgs_pfas.py --load
 python scripts/etl/ingest_npdes_wastewater.py --load

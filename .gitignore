@@ -23,6 +23,7 @@ pnpm-debug.log*
 *.pid
 __pycache__/
 *.pyc
+.local/
 
 # local ETL outputs and downloaded archives
 /scripts/etl/raw/

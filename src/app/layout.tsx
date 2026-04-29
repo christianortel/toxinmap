@@ -33,8 +33,8 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${instrumentSerif.variable}`}>
-      <body className="font-sans antialiased">
+    <html lang="en" className={`${geist.variable} ${instrumentSerif.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased" suppressHydrationWarning>
         <Providers>
           <div className="relative overflow-hidden">
             <div className="pointer-events-none absolute inset-0 opacity-70">

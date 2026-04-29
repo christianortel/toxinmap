@@ -19,6 +19,8 @@ type ExplorerUrlDefaults = ExplorerUrlState & {
   availableGroups: ExplorerLayerGroup[];
   availableLayerIds: ExplorerLayerId[];
   availableFilterChips: ExplorerFilterChip[];
+  minYear?: number;
+  maxYear?: number;
 };
 
 export type ParsedExplorerUrlState = ExplorerUrlState & {
@@ -53,7 +55,8 @@ export function parseExplorerUrlState(
     defaults.availableFilterChips.includes(value as ExplorerFilterChip),
   ) as ExplorerFilterChip[];
 
-  const requestedYear = Number(searchParams.get("year"));
+  const requestedYearParam = searchParams.get("year")?.trim();
+  const requestedYear = requestedYearParam ? Number(requestedYearParam) : Number.NaN;
   const requestedEntityId = searchParams.get("entity")?.trim() ?? null;
   const requestedSearchQuery = searchParams.get("q")?.trim() ?? "";
   const requestedLat = Number(searchParams.get("lat"));
@@ -66,13 +69,20 @@ export function parseExplorerUrlState(
     Number.isFinite(requestedLng) &&
     requestedPlace;
 
+  const resolvedYear = Number.isFinite(requestedYear)
+    ? Math.min(
+        defaults.maxYear ?? requestedYear,
+        Math.max(defaults.minYear ?? requestedYear, requestedYear),
+      )
+    : defaults.activeYear;
+
   return {
     activeGroups: requestedGroups.length ? uniqueValues(requestedGroups) : defaults.activeGroups,
     activeLayerIds: requestedLayers.length ? uniqueValues(requestedLayers) : defaults.activeLayerIds,
     activeFilterChips: requestedChips.length
       ? uniqueValues(requestedChips)
       : defaults.activeFilterChips,
-    activeYear: Number.isFinite(requestedYear) ? requestedYear : defaults.activeYear,
+    activeYear: resolvedYear,
     searchQuery: requestedSearchQuery || defaults.searchQuery,
     selectedEntityId: requestedEntityId || null,
     nearbyFocus: hasNearbyFocus

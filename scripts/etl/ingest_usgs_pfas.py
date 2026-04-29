@@ -130,6 +130,28 @@ def build_load_rows(frame: pd.DataFrame) -> list[dict]:
         sum_pfas = pd.to_numeric(record.get("SUM_PFAS"), errors="coerce")
         detects = pd.to_numeric(record.get("DETECTS"), errors="coerce")
         sample_year = pd.to_numeric(record.get("SampleYear"), errors="coerce")
+        pfos = pd.to_numeric(record.get("PFOS"), errors="coerce")
+        pfoa = pd.to_numeric(record.get("PFOA"), errors="coerce")
+        genx = pd.to_numeric(record.get("GENX_num"), errors="coerce")
+
+        chemical_highlights = ["PFAS"]
+        if pd.notna(pfos) and pfos > 0:
+            chemical_highlights.append("PFOS")
+        if pd.notna(pfoa) and pfoa > 0:
+            chemical_highlights.append("PFOA")
+        if pd.notna(genx) and genx > 0:
+            chemical_highlights.append("GenX")
+
+        source_stats: list[dict[str, str]] = [
+            {"label": "Detections", "value": str(int(detects)) if pd.notna(detects) else "0"},
+            {"label": "PFAS sum", "value": f"{float(sum_pfas):.1f} ng/L" if pd.notna(sum_pfas) else "N/A"},
+        ]
+        if pd.notna(genx) and genx > 0:
+            source_stats.append({"label": "GenX", "value": f"{float(genx):.1f} ng/L"})
+
+        official_signals = ["USGS tap-water PFAS sampling result"]
+        if pd.notna(genx) and genx > 0:
+            official_signals.append(f"GenX detected at {float(genx):.1f} ng/L")
 
         rows.append(
             {
@@ -166,13 +188,17 @@ def build_load_rows(frame: pd.DataFrame) -> list[dict]:
                 "metadata": {
                     "signalFamilies": ["pfas"],
                     "chemicalMarkers": ["pfas"],
-                    "chemicalHighlights": ["PFAS"],
+                    "chemicalHighlights": chemical_highlights,
                     "study": study,
                     "pfasDetects": int(detects) if pd.notna(detects) else None,
                     "sumPfasNgL": float(sum_pfas) if pd.notna(sum_pfas) else None,
-                    "officialSignals": ["USGS tap-water PFAS sampling result"],
+                    "pfosNgL": float(pfos) if pd.notna(pfos) else None,
+                    "pfoaNgL": float(pfoa) if pd.notna(pfoa) else None,
+                    "genxNgL": float(genx) if pd.notna(genx) else None,
+                    "officialSignals": official_signals,
                     "emergingConcerns": ["Unsampled locations should not be interpreted as PFAS-free."],
                     "uncertaintyNote": "This layer represents sampled locations from a national reconnaissance, not universal household tap-water coverage.",
+                    "sourceStats": source_stats,
                 },
             }
         )

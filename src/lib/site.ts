@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "toxinmap.com",
-  tagline: "A U.S. toxin globe.",
+  tagline: "A U.S. toxin map.",
   description:
-    "A U.S.-first 3D globe for exploring toxic releases, PFAS context, wastewater pathways, and modeled contamination signals near real places.",
+    "A U.S.-first toxin map for exploring toxic releases, PFAS context, wastewater pathways, and modeled contamination signals near real places.",
   navigation: [
     { href: "/", label: "Map" },
     { href: "/sources", label: "Sources" },

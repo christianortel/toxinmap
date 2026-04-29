@@ -41,7 +41,7 @@ export const explorerLayerDefinitions: ExplorerLayerDefinition[] = [
     group: "official",
     category: "Energy infrastructure",
     subcategory: "Combustion and discharge context",
-    accent: "var(--accent-industrial)",
+    accent: "var(--accent-power)",
     emphasis: "point",
     visibleByDefault: true,
     description: "Power infrastructure used as official contamination context in selected basins.",
@@ -53,7 +53,7 @@ export const explorerLayerDefinitions: ExplorerLayerDefinition[] = [
     group: "official",
     category: "Hazard registry",
     subcategory: "Legacy contamination sites",
-    accent: "var(--accent-warning)",
+    accent: "var(--accent-hazard)",
     emphasis: "point",
     visibleByDefault: true,
     description: "Hazardous and legacy sites that anchor historical contamination visibility.",
@@ -77,7 +77,7 @@ export const explorerLayerDefinitions: ExplorerLayerDefinition[] = [
     group: "emerging",
     category: "Discharge pathway",
     subcategory: "Effluent and outfall context",
-    accent: "#6f94a8",
+    accent: "var(--accent-wastewater)",
     emphasis: "point",
     visibleByDefault: true,
     description: "Wastewater and discharge-related sites that may connect upstream activity to downstream concern.",
@@ -113,7 +113,7 @@ export const explorerLayerDefinitions: ExplorerLayerDefinition[] = [
     group: "legal",
     category: "Pressure point",
     subcategory: "Litigation and enforcement",
-    accent: "var(--accent-warning)",
+    accent: "var(--accent-legal)",
     emphasis: "story",
     visibleByDefault: true,
     description:
@@ -123,10 +123,13 @@ export const explorerLayerDefinitions: ExplorerLayerDefinition[] = [
 
 export const explorerEntities: ExplorerEntity[] = mockEntities;
 
+const latestTimelineYear = timelineStops[timelineStops.length - 1]?.year ?? 2025;
+const activeTimelineYear = latestTimelineYear;
+
 export const explorerTimelineRange: ExplorerTimelineRange = {
-  activeYear: timelineStops[timelineStops.length - 1]?.year ?? 2025,
+  activeYear: activeTimelineYear,
   startYear: timelineStops[0]?.year ?? 1974,
-  endYear: timelineStops[timelineStops.length - 1]?.year ?? 2025,
+  endYear: activeTimelineYear,
 };
 
 export const explorerFilterChips: { id: ExplorerFilterChip; label: string }[] = [

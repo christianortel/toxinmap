@@ -2,9 +2,11 @@
 
 import { create } from "zustand";
 import { explorerTimelineRange } from "@/content/explorer-data";
+import { HOME_VIEW } from "@/lib/map/camera";
 import { getDefaultLayerIds } from "@/lib/map/layer-registry";
 import type {
   ExplorerCameraTarget,
+  ExplorerCameraView,
   ExplorerFilterChip,
   ExplorerHoverState,
   ExplorerNearbyFocus,
@@ -26,9 +28,22 @@ type ExplorerState = {
   isSearchOpen: boolean;
   activeFilterChips: ExplorerFilterChip[];
   cameraHeight: number;
+  cameraCenter: [number, number];
   isCameraAtHome: boolean;
   nearbyFocus: ExplorerNearbyFocus | null;
   cameraTarget: ExplorerCameraTarget | null;
+  applyExplorerSurfaceState: (
+    nextState: Pick<
+      ExplorerState,
+      | "selectedEntityId"
+      | "nearbyFocus"
+      | "isDrawerOpen"
+      | "searchQuery"
+      | "isSearchOpen"
+      | "cameraTarget"
+      | "isCameraAtHome"
+    >,
+  ) => void;
   replaceExplorerState: (
     nextState: Partial<
       Pick<
@@ -56,6 +71,7 @@ type ExplorerState = {
   toggleFilterChip: (chip: ExplorerFilterChip) => void;
   clearFilterChips: () => void;
   setCameraHeight: (height: number) => void;
+  setCameraView: (view: ExplorerCameraView) => void;
   setCameraAtHome: (atHome: boolean) => void;
   setNearbyFocus: (focus: ExplorerNearbyFocus | null) => void;
   setCameraTarget: (target: ExplorerCameraTarget | null) => void;
@@ -73,15 +89,28 @@ export const useExplorerStore = create<ExplorerState>((set) => ({
   hoverState: null,
   activeYear: explorerTimelineRange.activeYear,
   timelineRange: [explorerTimelineRange.startYear, explorerTimelineRange.endYear],
-  isLegendExpanded: true,
+  isLegendExpanded: false,
   isDrawerOpen: true,
   searchQuery: "",
   isSearchOpen: false,
   activeFilterChips: [],
-  cameraHeight: 18_500_000,
+  cameraHeight: HOME_VIEW.height,
+  cameraCenter: [HOME_VIEW.lng, HOME_VIEW.lat],
   isCameraAtHome: true,
   nearbyFocus: null,
   cameraTarget: null,
+  applyExplorerSurfaceState: (nextState) =>
+    set({
+      selectedEntityId: nextState.selectedEntityId,
+      nearbyFocus: nextState.nearbyFocus,
+      isDrawerOpen: nextState.isDrawerOpen,
+      searchQuery: nextState.searchQuery,
+      isSearchOpen: nextState.isSearchOpen,
+      cameraTarget: nextState.cameraTarget,
+      isCameraAtHome: nextState.isCameraAtHome,
+      hoveredEntityId: null,
+      hoverState: null,
+    }),
   replaceExplorerState: (nextState) =>
     set((state) => ({
       ...nextState,
@@ -126,11 +155,18 @@ export const useExplorerStore = create<ExplorerState>((set) => ({
     })),
   clearFilterChips: () => set({ activeFilterChips: [] }),
   setCameraHeight: (height) => set({ cameraHeight: height }),
+  setCameraView: (view) =>
+    set({
+      cameraHeight: view.height,
+      cameraCenter: view.coordinates,
+    }),
   setCameraAtHome: (atHome) => set({ isCameraAtHome: atHome }),
   setNearbyFocus: (focus) => set({ nearbyFocus: focus, selectedEntityId: null, isDrawerOpen: false }),
   setCameraTarget: (target) => set({ cameraTarget: target, selectedEntityId: null, isDrawerOpen: false }),
   resetCameraState: () =>
     set({
+      cameraHeight: HOME_VIEW.height,
+      cameraCenter: [HOME_VIEW.lng, HOME_VIEW.lat],
       isCameraAtHome: true,
       selectedEntityId: null,
       hoveredEntityId: null,

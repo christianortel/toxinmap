@@ -1,7 +1,12 @@
 import { mockSources } from "@/data/mock/sources";
 import { layerGroupLabels } from "@/lib/data/evidence";
 import type { LayerGroup } from "@/types/data";
-import type { SourceProgramTier, SourceRegistryEntry, SourceType } from "@/types/sources";
+import type {
+  SourceImplementationRole,
+  SourceProgramTier,
+  SourceRegistryEntry,
+  SourceType,
+} from "@/types/sources";
 
 export const sourceTypeDescriptions: Record<SourceType, string> = {
   "Federal Registry": "Operational government registry or administrative system.",
@@ -11,6 +16,21 @@ export const sourceTypeDescriptions: Record<SourceType, string> = {
   "Global Statistical": "Population-scale statistical context with limited local specificity.",
   "Global Infrastructure": "Global infrastructure context rather than direct exposure measurement.",
   "Hydrology Framework": "Spatial hydrology or basin geometry used for downstream logic.",
+};
+
+export const sourceImplementationRoleLabels: Record<SourceImplementationRole, string> = {
+  "primary-operational": "Primary operational source",
+  "methodology-reference": "Methodology-derived reference",
+  "reference-benchmark": "Reference and QA benchmark",
+};
+
+export const sourceImplementationRoleDescriptions: Record<SourceImplementationRole, string> = {
+  "primary-operational":
+    "This source is part of the intended live toxinmap data pipeline when public downloads and ETL are available.",
+  "methodology-reference":
+    "This source shapes toxinmap behavior, categories, and layer logic, but toxinmap rebuilds the map from upstream official or citable datasets where possible.",
+  "reference-benchmark":
+    "This source is used to cross-check scope, coverage, taxonomy, and public readability rather than as a default ingest path.",
 };
 
 export const programTierOrder: SourceProgramTier[] = [

@@ -9,6 +9,8 @@ import {
   updateCadenceLabels,
 } from "@/lib/data/evidence";
 import {
+  sourceImplementationRoleDescriptions,
+  sourceImplementationRoleLabels,
   getSourceLayerGroupSummary,
   getSourcesGroupedByTier,
   sourceTypeDescriptions,
@@ -118,6 +120,24 @@ export function SourcesRegistry() {
                     <p className="eyebrow mb-2">Methodological use</p>
                     <p className="body-sm">{record.methodologicalUse}</p>
                   </div>
+                  {record.implementationRole ? (
+                    <div className="surface-panel-soft p-4">
+                      <p className="eyebrow mb-2">How toxinmap uses it</p>
+                      <p className="text-sm text-white">
+                        {sourceImplementationRoleLabels[record.implementationRole]}
+                      </p>
+                      <p className="mt-2 body-sm">
+                        {sourceImplementationRoleDescriptions[record.implementationRole]}
+                      </p>
+                      {record.mimicContributions?.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {record.mimicContributions.map((item) => (
+                            <Badge key={item}>{item}</Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {record.originSite || record.upstreamDatasets?.length || record.downloadability ? (
                     <div className="surface-panel-soft p-4">
                       <p className="eyebrow mb-2">Acquisition path</p>

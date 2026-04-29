@@ -226,24 +226,63 @@ def build_industrial_site_rows(frame: pd.DataFrame, year: int) -> list[dict]:
 
 
 def build_release_rows(frame: pd.DataFrame, year: int) -> list[dict]:
+    release_frame = frame.copy()
+    for column in ("total_release_kg",):
+        if column not in release_frame.columns:
+            release_frame[column] = 0
+        release_frame[column] = _as_number(release_frame[column]).fillna(0)
+
+    release_frame["air_release_kg"] = release_frame.apply(
+        lambda row: float(row["total_release_kg"]) if str(row.get("dominant_release_medium") or "").lower() == "air" else 0,
+        axis=1,
+    )
+    release_frame["water_release_kg"] = release_frame.apply(
+        lambda row: float(row["total_release_kg"]) if str(row.get("dominant_release_medium") or "").lower() == "water" else 0,
+        axis=1,
+    )
+
+    grouped = (
+        release_frame.groupby(
+            ["slug", "chemical", "cas", "classification", "frs_id"],
+            dropna=False,
+        )
+        .agg(
+            total_release_kg=("total_release_kg", "sum"),
+            air_release_kg=("air_release_kg", "sum"),
+            water_release_kg=("water_release_kg", "sum"),
+            row_count=("chemical", "count"),
+            unit_of_measure=("unit_of_measure", "first"),
+            tri_facility_ids=("trifd", lambda values: sorted({str(value).strip() for value in values if pd.notna(value) and str(value).strip()})),
+        )
+        .reset_index()
+    )
+
     release_rows: list[dict] = []
-    for record in frame.to_dict("records"):
+    for record in grouped.to_dict("records"):
+        air_release_kg = float(record.get("air_release_kg") or 0)
+        water_release_kg = float(record.get("water_release_kg") or 0)
+        dominant_release_medium = "water" if water_release_kg > air_release_kg else "air"
+        chemical = str(record["chemical"]).strip()
+
         release_rows.append(
             {
                 "site_slug": record["slug"],
-                "record_title": f"{record['chemical']} reported releases",
-                "chemical_name": record["chemical"],
+                "record_title": f"{chemical} reported releases",
+                "chemical_name": chemical,
                 "cas_number": record.get("cas"),
                 "reporting_year": year,
                 "quantity_kg": float(record["total_release_kg"]) if pd.notna(record["total_release_kg"]) else None,
-                "release_medium": record.get("dominant_release_medium"),
+                "release_medium": dominant_release_medium,
                 "category": "Facility footprint",
                 "subcategory": record.get("classification") or "TRI chemical release",
                 "layer_group": "official",
                 "evidence_type": "direct_measurement",
                 "confidence_level": "high",
                 "geographic_level": "facility",
-                "summary": f"TRI chemical release record for {record['chemical']} in {year}.",
+                "summary": (
+                    f"TRI chemical release record for {chemical} in {year}, aggregated from "
+                    f"{int(record['row_count'])} source row{'s' if int(record['row_count']) != 1 else ''}."
+                ),
                 "notes": "Reported release quantities are based on TRI submissions and may reflect estimation methods.",
                 "tags": [],
                 "source_ids": ["epa-tri"],
@@ -261,8 +300,12 @@ def build_release_rows(frame: pd.DataFrame, year: int) -> list[dict]:
                         record.get("chemical"),
                     ),
                     "unitOfMeasure": record.get("unit_of_measure"),
-                    "trifd": record.get("trifd"),
+                    "trifd": record.get("tri_facility_ids", [None])[0],
+                    "triFacilityIds": record.get("tri_facility_ids", []),
                     "frsId": record.get("frs_id"),
+                    "airReleaseKg": air_release_kg,
+                    "waterReleaseKg": water_release_kg,
+                    "triSourceRowCount": int(record["row_count"]),
                 },
             }
         )

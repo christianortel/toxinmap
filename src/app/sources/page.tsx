@@ -7,7 +7,7 @@ export default function SourcesPage() {
       <SectionIntro
         eyebrow="Sources"
         title="A source registry built for auditability, caveats, and real ingest replacement."
-        body="Each source entry tracks evidence support, spatial resolution, cadence, and whether toxinmap.com is ingesting the data directly or using it as a methodology reference. That keeps the map ambitious without blurring provenance."
+        body="Each source entry tracks evidence support, spatial resolution, cadence, and whether toxinmap.com is ingesting the data directly, deriving map behavior from methodology, or using the source as a reference benchmark. That keeps the map ambitious without blurring provenance."
       />
       <div className="mb-8 grid gap-4 lg:grid-cols-3">
         <div className="surface-panel-soft p-5">
@@ -20,15 +20,16 @@ export default function SourcesPage() {
         <div className="surface-panel-soft p-5">
           <p className="eyebrow mb-3">Replacement-ready</p>
           <p className="body-sm">
-            Each registry entry is structured so mock records can be replaced by ETL outputs later
-            without a redesign of the sources page or the explorer drawer.
+            Each registry entry is structured so EPA, ATSDR, and USGS ETL outputs can replace mock
+            records later without a redesign of the sources page or the explorer drawer.
           </p>
         </div>
         <div className="surface-panel-soft p-5">
-          <p className="eyebrow mb-3">Transparency</p>
+          <p className="eyebrow mb-3">Reference products</p>
           <p className="body-sm">
-            Planned placeholders remain visible where the architecture matters but clean public
-            spatial coverage does not yet exist or should not be overstated.
+            Linked projects such as ProPublica ToxMap, EDF CEAM, Clear Collaborative, EWG, IPEN,
+            and the Plastic Health Map are tracked explicitly as methodology or QA inputs rather
+            than being treated as mysterious inspiration.
           </p>
         </div>
       </div>
