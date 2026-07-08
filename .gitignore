@@ -8,6 +8,11 @@
 # build
 /dist
 
+# cloudflare / opennext build artifacts
+/.open-next
+/.wrangler
+.dev.vars
+
 # local env
 .env
 .env.local

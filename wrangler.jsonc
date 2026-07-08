@@ -1,0 +1,28 @@
+{
+  // Cloudflare Workers config for the OpenNext build of this app.
+  //
+  // WHY THIS FILE EXISTS: without a committed wrangler config, Cloudflare's
+  // build CI auto-ran `@opennextjs/cloudflare migrate` on every deploy and
+  // generated an INCONSISTENT setup — it deployed the Worker under the name
+  // `toxinmap` (the Cloudflare project name) while baking the OpenNext
+  // WORKER_SELF_REFERENCE service binding against `toxinmap-com` (the
+  // package.json name). A Worker's self-reference must match its own deployed
+  // name, so it failed with:
+  //   Service binding 'WORKER_SELF_REFERENCE' references Worker 'toxinmap-com'
+  //   which was not found. [code: 10143]
+  //
+  // Pinning `name` here to the actual Cloudflare Worker name makes the
+  // self-reference resolve. Keep this `name` === your Cloudflare Worker name.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "toxinmap",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
